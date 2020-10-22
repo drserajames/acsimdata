@@ -7,11 +7,12 @@
 map_maker_random(
   n_antigens,
   n_sera,
-  range = NA,
+  range,
   dimensions = 2,
   antigen_density = n_antigens/range^dimensions,
   rdistribution = runif,
-  coincident = T
+  coincident = T,
+  seed
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ map_maker_random(
 \item{rdistribution}{A function that generates random numbers for the spatial distribution of points. The default is runif and a reasonable option is rnorm or a user generated function.}
 
 \item{coincident}{TRUE if the serum points are in the same position as the antigen points, FALSE otherwise}
+
+\item{seed}{Random seed}
 }
 \value{
 

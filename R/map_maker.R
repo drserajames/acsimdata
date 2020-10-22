@@ -9,6 +9,7 @@
 #' @param antigen_density The density of antigen points, which can be used to indirectly specify the range. Only used when range is not specified
 #' @param rdistribution A function that generates random numbers for the spatial distribution of points. The default is runif and a reasonable option is rnorm or a user generated function.
 #' @param coincident TRUE if the serum points are in the same position as the antigen points, FALSE otherwise
+#' @param seed Random seed
 #'
 #' @return
 #' @export
@@ -16,10 +17,14 @@
 #' @examples
 #'
 #' map_maker_random(5, 5, 10)
-map_maker_random <- function(n_antigens, n_sera, range = NA, dimensions = 2, antigen_density = n_antigens/range^dimensions,
-                             rdistribution = runif, coincident=T){
-  if(is.na(range)){
+map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_density = n_antigens/range^dimensions,
+                             rdistribution = runif, coincident=T, seed){
+  if(missing(range)){
     range <- (n_antigens/density)^(1/dimensions)
+  }
+
+  if(!missing(seed)){
+    set.seed(seed)
   }
 
   ag_coord <- matrix(rdistribution(n_antigens*dimensions, 0, range), ncol=dimensions)
