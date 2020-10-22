@@ -1,4 +1,3 @@
-#' @export
 #' Make a random map
 #'
 #' Create random map positions and return the positions and distance matrix. Currently produces a map as a line, square, cube or hypercube
