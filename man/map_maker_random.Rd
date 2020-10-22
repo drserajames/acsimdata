@@ -5,10 +5,13 @@
 \title{Make a random map}
 \usage{
 map_maker_random(
-  n_antigens = 10,
-  n_sera = 10,
-  range = c(0, 10),
-  dimensions = 2
+  n_antigens,
+  n_sera,
+  range = NA,
+  dimensions = 2,
+  antigen_density = n_antigens/range^dimensions,
+  rdistribution = runif,
+  coincident = T
 )
 }
 \arguments{
@@ -16,17 +19,23 @@ map_maker_random(
 
 \item{n_sera}{The number of serum points}
 
-\item{range}{The range of the map (in all dimensions)}
+\item{range}{The maximum range of the map (in all dimensions)}
 
 \item{dimensions}{The number of dimensions the map}
+
+\item{antigen_density}{The density of antigen points, which can be used to indirectly specify the range. Only used when range is not specified}
+
+\item{rdistribution}{A function that generates random numbers for the spatial distribution of points. The default is runif and a reasonable option is rnorm or a user generated function.}
+
+\item{coincident}{TRUE if the serum points are in the same position as the antigen points, FALSE otherwise}
 }
 \value{
 
 }
 \description{
-Create random map positions and return the positions and distance matrix. Currently produces a map as a line, square, cube or hypercube
+Create random map positions and return the positions and distance matrix. Currently produces a map as a line, square, cube or hypercube.
 }
 \examples{
 
-map_maker_random(5,5)
+map_maker_random(5, 5, 10)
 }
