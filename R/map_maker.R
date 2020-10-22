@@ -17,23 +17,23 @@
 #' @examples
 #'
 #' map_maker_random(5, 5, 10)
-map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_density = n_antigens/range^dimensions,
-                             rdistribution = runif, coincident=T, seed){
-  if(missing(range)){
-    range <- (n_antigens/density)^(1/dimensions)
+map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_density = n_antigens / range^dimensions,
+                             rdistribution = runif, coincident = T, seed) {
+  if (missing(range)) {
+    range <- (n_antigens / density)^(1 / dimensions)
   }
 
-  if(!missing(seed)){
+  if (!missing(seed)) {
     set.seed(seed)
   }
 
-  ag_coord <- matrix(rdistribution(n_antigens*dimensions, 0, range), ncol=dimensions)
+  ag_coord <- matrix(rdistribution(n_antigens * dimensions, 0, range), ncol = dimensions)
   rownames(ag_coord) <- paste0("AG", 1:n_antigens)
 
-  if (coincident == T){
-    sr_coord <- ag_coord[1:n_sera,]
-  }else{
-  sr_coord <- matrix(rdistribution(n_sera*dimensions, 0, range), ncol=dimensions)
+  if (coincident == T) {
+    sr_coord <- ag_coord[1:n_sera, ]
+  } else {
+    sr_coord <- matrix(rdistribution(n_sera * dimensions, 0, range), ncol = dimensions)
   }
   rownames(sr_coord) <- paste0("SR", 1:n_sera)
 
