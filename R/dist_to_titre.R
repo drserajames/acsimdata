@@ -43,10 +43,27 @@ dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, m
   return(out)
 }
 
+
+#' Convert both true and noisy antigenic distances to HI titres
+#'
+#' A wrapper for dist_to_hi_titre that converts the true antigenic distances and the noisy antigenic distances, as output from add_noise
+#'
+#' @param noise_dists The output from add_noise
+#' @param base The base that should be used for converting distances to titres. The default is base 2
+#' @param divisor The numerator for the conversion. This is the number you divide the HI titre by when converting to an antigenic distance. The default is 10.
+#' @param max_log_titre The highest logged titre possible. This can be the same for all sera, or a vector that is recycled.
+#' @param min_log_titre The smallest logged titre possible. As above.
+#'
+#' @return
 #' @export
+#'
+#' @examples
+#' m <- map_maker_random(5, 5, 10)
+#' n <- add_noise(m$dist)
+#' noise_dist_to_hi_titre(n)
 noise_dist_to_hi_titre <- function(noise_dists, base=2, divisor=10, max_log_titre=9, min_log_titre=0){
-  true_titre <- dist_to_hi_titre(noise_dists$dist_table, ...)
-  noise_titre <- dist_to_hi_titre(noise_dists$noise_dist_table, ...)
+  true_titre <- dist_to_hi_titre(noise_dists$dist_table, base=base, divisor=divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
+  noise_titre <- dist_to_hi_titre(noise_dists$noise_dist_table, base=base, divisor=divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
 
   out <- list(true_titre=true_titre, noise_titre=noise_titre)
 }
