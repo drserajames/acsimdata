@@ -42,3 +42,14 @@ dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, m
   )
   return(out)
 }
+
+#' @export
+noise_dist_to_hi_titre <- function(noise_dists, base=2, divisor=10, max_log_titre=9, min_log_titre=0){
+  true_titre <- dist_to_hi_titre(noise_dists$dist_table, ...)
+  noise_titre <- dist_to_hi_titre(noise_dists$noise_dist_table, ...)
+
+  out <- list(true_titre=true_titre, noise_titre=noise_titre)
+}
+
+
+
