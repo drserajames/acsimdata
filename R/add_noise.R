@@ -17,9 +17,9 @@
 #' @examples
 #' m <- map_maker_random(5, 5, 10)
 #' noise_dists <- add_noise(m$dist)
-add_noise <- function(dists, titre_noise_rdistribution = rnorm, titre_noise_param = c(0, 0.5),
-                      antigen_noise_rdistribution = rnorm, antigen_noise_param = c(0, 0.5),
-                      serum_noise_rdistribution = rnorm, serum_noise_param = c(0, 0.5),
+add_noise <- function(dists, titre_noise_rdistribution = stats::rnorm, titre_noise_param = c(0, 0.5),
+                      antigen_noise_rdistribution = stats::rnorm, antigen_noise_param = c(0, 0.5),
+                      serum_noise_rdistribution = stats::rnorm, serum_noise_param = c(0, 0.5),
                       seed) {
   which_antigens <- grep("AG", rownames(dists))
   which_sera <- grep("SR", colnames(dists))
@@ -53,7 +53,7 @@ add_noise <- function(dists, titre_noise_rdistribution = rnorm, titre_noise_para
   return(out)
 }
 
-add_titre_noise <- function(map, dists, titre_noise_rdistribution = rnorm, titre_noise_param = c(0, 0.5)) {
+add_titre_noise <- function(map, dists, titre_noise_rdistribution = stats::rnorm, titre_noise_param = c(0, 0.5)) {
   add_noise(map, dists,
     titre_noise_rdistribution = titre_noise_rdistribution, titre_noise_param = titre_noise_param,
     antigen_noise_param = c(0, 0),
@@ -61,7 +61,7 @@ add_titre_noise <- function(map, dists, titre_noise_rdistribution = rnorm, titre
   )
 }
 
-add_antigen_noise <- function(map, dists, antigen_noise_rdistribution = rnorm, antigen_noise_param = c(0, 0.5)) {
+add_antigen_noise <- function(map, dists, antigen_noise_rdistribution = stats::rnorm, antigen_noise_param = c(0, 0.5)) {
   add_noise(map, dists,
     titre_noise_param = c(0, 0),
     antigen_noise_rdistribution = antigen_noise_rdistribution, antigen_noise_param = antigen_noise_param,
@@ -69,7 +69,7 @@ add_antigen_noise <- function(map, dists, antigen_noise_rdistribution = rnorm, a
   )
 }
 
-add_serum_noise <- function(map, dists, serum_noise_rdistribution = rnorm, serum_noise_param = c(0, 0.5)) {
+add_serum_noise <- function(map, dists, serum_noise_rdistribution = stats::rnorm, serum_noise_param = c(0, 0.5)) {
   add_noise(map, dists,
     titre_noise_param = c(0, 0),
     antigen_noise_param = c(0, 0),

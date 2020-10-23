@@ -18,9 +18,9 @@
 #'
 #' map_maker_random(5, 5, 10)
 map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_density = n_antigens / range^dimensions,
-                             rdistribution = runif, coincident = T, seed) {
+                             rdistribution = stats::runif, coincident = T, seed) {
   if (missing(range)) {
-    range <- (n_antigens / density)^(1 / dimensions)
+    range <- (n_antigens / antigen_density)^(1 / dimensions)
   }
 
 
@@ -41,7 +41,7 @@ map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_
 
   all_coord <- rbind(ag_coord, sr_coord)
 
-  dists <- as.matrix(dist(all_coord))
+  dists <- as.matrix(stats::dist(all_coord))
 
   out <- list(coord = all_coord, dist = dists, params = list(n_antigens = n_antigens, n_sera = n_sera, range = range, dimensions = dimensions, antigen_density = antigen_density, rdistribution = rdistribution, coincident = coincident, seed = seed))
   return(out)

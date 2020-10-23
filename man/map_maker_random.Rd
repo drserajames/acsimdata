@@ -10,7 +10,7 @@ map_maker_random(
   range,
   dimensions = 2,
   antigen_density = n_antigens/range^dimensions,
-  rdistribution = runif,
+  rdistribution = stats::runif,
   coincident = T,
   seed
 )
