@@ -3,3 +3,5 @@
 export(add_noise)
 export(dist_to_hi_titre)
 export(map_maker_random)
+export(miss_titres_random)
+export(noise_dist_to_hi_titre)
