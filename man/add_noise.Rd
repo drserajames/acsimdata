@@ -33,7 +33,7 @@ add_noise(
 \item{seed}{Random seed}
 }
 \value{
-
+list
 }
 \description{
 Adds up to three different types of noise to the antigenic distances: per titre, per antigen and per serum. The default noise distributions are normal, but can be

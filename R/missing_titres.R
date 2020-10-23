@@ -6,7 +6,7 @@
 #' @param proportion The proportion of titres to be removed
 #' @param keep_homologous Whether to retain homologous titres
 #'
-#' @return
+#' @return list
 #' @export
 #'
 #' @examples

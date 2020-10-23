@@ -24,7 +24,7 @@ dist_to_hi_titre(
 \item{min_log_titre}{The smallest logged titre possible. As above.}
 }
 \value{
-
+list
 }
 \description{
 Takes an antigenic distance matrix and converts into values like HI titres. Antigenic distances are calculated by taking the logarithm of the HI titres, so the reverse is done here (exponentiated). So that the antigenic distances are generally whole numbers when calculated from standard HI tables, certain defaults are used.

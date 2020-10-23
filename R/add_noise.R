@@ -11,7 +11,7 @@
 #' @param serum_noise_param Arguments for the serum_noise_rdistribution function
 #' @param seed Random seed
 #'
-#' @return
+#' @return list
 #' @export
 #'
 #' @examples

@@ -24,7 +24,7 @@ noise_dist_to_hi_titre(
 \item{min_log_titre}{The smallest logged titre possible. As above.}
 }
 \value{
-
+list
 }
 \description{
 A wrapper for dist_to_hi_titre that converts the true antigenic distances and the noisy antigenic distances, as output from add_noise

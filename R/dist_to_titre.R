@@ -8,7 +8,7 @@
 #' @param max_log_titre The highest logged titre possible. This can be the same for all sera, or a vector that is recycled.
 #' @param min_log_titre The smallest logged titre possible. As above.
 #'
-#' @return
+#' @return list
 #' @export
 #'
 #' @examples
@@ -54,7 +54,7 @@ dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, m
 #' @param max_log_titre The highest logged titre possible. This can be the same for all sera, or a vector that is recycled.
 #' @param min_log_titre The smallest logged titre possible. As above.
 #'
-#' @return
+#' @return list
 #' @export
 #'
 #' @examples

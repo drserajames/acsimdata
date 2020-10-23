@@ -11,7 +11,7 @@
 #' @param coincident TRUE if the serum points are in the same position as the antigen points, FALSE otherwise
 #' @param seed Random seed
 #'
-#' @return
+#' @return list
 #' @export
 #'
 #' @examples

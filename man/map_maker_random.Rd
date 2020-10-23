@@ -33,7 +33,7 @@ map_maker_random(
 \item{seed}{Random seed}
 }
 \value{
-
+list
 }
 \description{
 Create random map positions and return the positions and distance matrix. Currently produces a map as a line, square, cube or hypercube.

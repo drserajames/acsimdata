@@ -14,7 +14,7 @@ miss_titres_random(titre, proportion, keep_homologous = T)
 \item{keep_homologous}{Whether to retain homologous titres}
 }
 \value{
-
+list
 }
 \description{
 Generates a titre table with missing data
