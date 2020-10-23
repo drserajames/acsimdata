@@ -5,19 +5,17 @@
 \title{Add noise to antigenic distances}
 \usage{
 add_noise(
-  map,
   dists,
   titre_noise_rdistribution = rnorm,
   titre_noise_param = c(0, 0.5),
   antigen_noise_rdistribution = rnorm,
   antigen_noise_param = c(0, 0.5),
   serum_noise_rdistribution = rnorm,
-  serum_noise_param = c(0, 0.5)
+  serum_noise_param = c(0, 0.5),
+  seed
 )
 }
 \arguments{
-\item{map}{A map object, as produced by map_maker_random}
-
 \item{dists}{A matrix of antigenic distances}
 
 \item{titre_noise_rdistribution}{Random distribution function for tire noise}
@@ -31,6 +29,8 @@ add_noise(
 \item{serum_noise_rdistribution}{Random distribution function for serum noise}
 
 \item{serum_noise_param}{Arguments for the serum_noise_rdistribution function}
+
+\item{seed}{Random seed}
 }
 \value{
 
@@ -40,5 +40,5 @@ Adds up to three different types of noise to the antigenic distances: per titre,
 }
 \examples{
  m <- map_maker_random(5, 5, 10)
- noise_dists <- add_noise(m)
+ noise_dists <- add_noise(m$dist)
 }

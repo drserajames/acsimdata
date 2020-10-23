@@ -2,7 +2,6 @@
 #'
 #' Adds up to three different types of noise to the antigenic distances: per titre, per antigen and per serum. The default noise distributions are normal, but can be
 #'
-#' @param map A map object, as produced by map_maker_random
 #' @param dists A matrix of antigenic distances
 #' @param titre_noise_rdistribution Random distribution function for tire noise
 #' @param titre_noise_param Arguments for the titre_noise_rdistribution function
@@ -17,24 +16,18 @@
 #'
 #' @examples
 #'  m <- map_maker_random(5, 5, 10)
-#'  noise_dists <- add_noise(m)
-add_noise <- function(map, dists, titre_noise_rdistribution=rnorm, titre_noise_param=c(0,0.5),
+#'  noise_dists <- add_noise(m$dist)
+add_noise <- function(dists, titre_noise_rdistribution=rnorm, titre_noise_param=c(0,0.5),
                       antigen_noise_rdistribution=rnorm, antigen_noise_param=c(0,0.5),
                       serum_noise_rdistribution=rnorm, serum_noise_param=c(0,0.5),
                       seed){
 
-  if(!missing(map)){
-    dists <- map$dist
-    n_antigens <- map$params$n_antigens
-    n_sera <- map$params$n_sera
-    which_antigens <- grep("AG", rownames(dists))
-    which_sera <- grep("SR", colnames(dists))
-  }else{
+
     which_antigens <- grep("AG", rownames(dists))
     which_sera <- grep("SR", colnames(dists))
     n_antigens <- length(which_antigens)
     n_sera <- length(which_sera)
-  }
+
 
   if (missing(seed)) {
     seed <- sample(1:1e6,1)
