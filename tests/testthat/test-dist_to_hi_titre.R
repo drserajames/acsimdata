@@ -7,8 +7,10 @@ test_that("output right size", {
     d[[i]] <- matrix(size[i]*runif(25),ncol=5, dimnames=list(paste0("AG", 1:5), paste0("SR", 1:5)))
     m[[i]] <- map_maker_random(5,5,size[i])
 
+    hi <- dist_to_hi_titre(dist=d[[i]])
     expect_equal(dim(d[[i]]), dim(hi$raw_titre))
 
+    hi <- dist_to_hi_titre(m[[i]])
     expect_equal(dim(m[[i]]$dist)/2, dim(hi$raw_titre))
   }
 
