@@ -10,6 +10,7 @@
 #' @param antigen_noise_param Arguments for the antigen_noise_rdistribution function
 #' @param serum_noise_rdistribution Random distribution function for serum noise
 #' @param serum_noise_param Arguments for the serum_noise_rdistribution function
+#' @param seed Random seed
 #'
 #' @return
 #' @export
@@ -19,7 +20,8 @@
 #'  noise_dists <- add_noise(m)
 add_noise <- function(map, dists, titre_noise_rdistribution=rnorm, titre_noise_param=c(0,0.5),
                       antigen_noise_rdistribution=rnorm, antigen_noise_param=c(0,0.5),
-                      serum_noise_rdistribution=rnorm, serum_noise_param=c(0,0.5)){
+                      serum_noise_rdistribution=rnorm, serum_noise_param=c(0,0.5),
+                      seed){
 
   if(!missing(map)){
     dists <- map$dist
@@ -34,6 +36,11 @@ add_noise <- function(map, dists, titre_noise_rdistribution=rnorm, titre_noise_p
     n_sera <- length(which_sera)
   }
 
+  if (missing(seed)) {
+    seed <- sample(1:1e6,1)
+  }
+  set.seed(seed)
+
   dist_table <- dists[which_antigens, which_sera]
 
   titre_noise <- matrix(do.call("titre_noise_rdistribution", as.list(c(n_antigens*n_sera, titre_noise_param))), nrow=n_antigens, ncol=n_sera)
@@ -43,7 +50,11 @@ add_noise <- function(map, dists, titre_noise_rdistribution=rnorm, titre_noise_p
 
   noise_dist_table <- dist_table+total_noise
 
-  out <- list(dist_table=dist_table, titre_noise=titre_noise, antigen_noise=antigen_noise, serum_noise=serum_noise, total_noise=total_noise, noise_dist_table=noise_dist_table)
+  out <- list(dist_table=dist_table, titre_noise=titre_noise, antigen_noise=antigen_noise, serum_noise=serum_noise, total_noise=total_noise, noise_dist_table=noise_dist_table,
+              params=list(titre_noise_rdistribution=titre_noise_rdistribution, titre_noise_param=titre_noise_param,
+                          antigen_noise_rdistribution=antigen_noise_rdistribution, antigen_noise_param=antigen_noise_param,
+                          serum_noise_rdistribution=serum_noise_rdistribution, serum_noise_param=serum_noise_param,
+                          seed=seed))
   return(out)
 }
 
