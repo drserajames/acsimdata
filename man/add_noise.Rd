@@ -39,6 +39,6 @@ add_noise(
 Adds up to three different types of noise to the antigenic distances: per titre, per antigen and per serum. The default noise distributions are normal, but can be
 }
 \examples{
- m <- map_maker_random(5, 5, 10)
- noise_dists <- add_noise(m$dist)
+m <- map_maker_random(5, 5, 10)
+noise_dists <- add_noise(m$dist)
 }

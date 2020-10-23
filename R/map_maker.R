@@ -25,7 +25,7 @@ map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_
 
 
   if (missing(seed)) {
-    seed <- sample(1:1e6,1)
+    seed <- sample(1:1e6, 1)
   }
   set.seed(seed)
 
@@ -43,6 +43,6 @@ map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_
 
   dists <- as.matrix(dist(all_coord))
 
-  out <- list(coord = all_coord, dist=dists, params =list(n_antigens=n_antigens, n_sera=n_sera, range=range, dimensions=dimensions, antigen_density=antigen_density, rdistribution=rdistribution, coincident=coincident, seed=seed))
+  out <- list(coord = all_coord, dist = dists, params = list(n_antigens = n_antigens, n_sera = n_sera, range = range, dimensions = dimensions, antigen_density = antigen_density, rdistribution = rdistribution, coincident = coincident, seed = seed))
   return(out)
 }

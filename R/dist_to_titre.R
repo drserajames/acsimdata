@@ -14,34 +14,31 @@
 #' @examples
 #' m <- map_maker_random(5, 5, 10)
 #' dist_to_hi_titre(m$dist)
-dist_to_hi_titre <- function(dists, base=2, divisor=10, max_log_titre=9, min_log_titre=0){
-
-
-    which_antigens <- grep("AG", rownames(dists))
-    which_sera <- grep("SR", colnames(dists))
-    n_antigens <- length(which_antigens)
-    n_sera <- length(which_sera)
+dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, min_log_titre = 0) {
+  which_antigens <- grep("AG", rownames(dists))
+  which_sera <- grep("SR", colnames(dists))
+  n_antigens <- length(which_antigens)
+  n_sera <- length(which_sera)
 
 
   dist_table <- dists[which_antigens, which_sera]
-  max_log_titre_table <- matrix(max_log_titre, nrow=nrow(dist_table), ncol=ncol(dist_table))
-  diff_table <- max_log_titre_table-dist_table
+  max_log_titre_table <- matrix(max_log_titre, nrow = nrow(dist_table), ncol = ncol(dist_table))
+  diff_table <- max_log_titre_table - dist_table
 
-  raw_titre <- divisor*base^diff_table
-  round_titre <- divisor*base^round(diff_table)
+  raw_titre <- divisor * base^diff_table
+  round_titre <- divisor * base^round(diff_table)
   lessthan_titre <- round_titre
-  lessthan_titre[diff_table<min_log_titre] <- paste0("<",divisor*base^round(min_log_titre))
+  lessthan_titre[diff_table < min_log_titre] <- paste0("<", divisor * base^round(min_log_titre))
   lessthanhack_titre <- round_titre
-  lessthanhack_titre[diff_table<min_log_titre] <- divisor*base^round(min_log_titre-1)
+  lessthanhack_titre[diff_table < min_log_titre] <- divisor * base^round(min_log_titre - 1)
 
-  out <- list(dists=dists,
-              raw_titre=raw_titre,
-              round_titre=round_titre,
-              lessthan_titre=lessthan_titre,
-              lessthanhack_titre=lessthanhack_titre,
-              params=list(base=base, divisor=divisor, max_log_titre=max_log_titre, min_log_titre=min_log_titre)
+  out <- list(
+    dists = dists,
+    raw_titre = raw_titre,
+    round_titre = round_titre,
+    lessthan_titre = lessthan_titre,
+    lessthanhack_titre = lessthanhack_titre,
+    params = list(base = base, divisor = divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
   )
   return(out)
 }
-
-
