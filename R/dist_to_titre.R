@@ -61,12 +61,9 @@ dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, m
 #' m <- map_maker_random(5, 5, 10)
 #' n <- add_noise(m$dist)
 #' noise_dist_to_hi_titre(n)
-noise_dist_to_hi_titre <- function(noise_dists, base=2, divisor=10, max_log_titre=9, min_log_titre=0){
-  true_titre <- dist_to_hi_titre(noise_dists$dist_table, base=base, divisor=divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
-  noise_titre <- dist_to_hi_titre(noise_dists$noise_dist_table, base=base, divisor=divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
+noise_dist_to_hi_titre <- function(noise_dists, base = 2, divisor = 10, max_log_titre = 9, min_log_titre = 0) {
+  true_titre <- dist_to_hi_titre(noise_dists$dist_table, base = base, divisor = divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
+  noise_titre <- dist_to_hi_titre(noise_dists$noise_dist_table, base = base, divisor = divisor, max_log_titre = max_log_titre, min_log_titre = min_log_titre)
 
-  out <- list(true_titre=true_titre, noise_titre=noise_titre)
+  out <- list(true_titre = true_titre, noise_titre = noise_titre)
 }
-
-
-

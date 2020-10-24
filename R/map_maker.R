@@ -43,6 +43,6 @@ map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_
 
   dists <- as.matrix(stats::dist(all_coord))
 
-  out <- list(coord = all_coord, antigen_coord =ag_coord, sera_coord = sr_coord, dist = dists, params = list(n_antigens = n_antigens, n_sera = n_sera, range = range, dimensions = dimensions, antigen_density = antigen_density, rdistribution = rdistribution, coincident = coincident, seed = seed))
+  out <- list(coord = all_coord, antigen_coord = ag_coord, sera_coord = sr_coord, dist = dists, params = list(n_antigens = n_antigens, n_sera = n_sera, range = range, dimensions = dimensions, antigen_density = antigen_density, rdistribution = rdistribution, coincident = coincident, seed = seed))
   return(out)
 }
