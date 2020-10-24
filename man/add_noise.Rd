@@ -7,11 +7,11 @@
 add_noise(
   dists,
   titre_noise_rdistribution = stats::rnorm,
-  titre_noise_param = c(0, 0.5),
+  titre_noise_param = c(0, 1),
   antigen_noise_rdistribution = stats::rnorm,
-  antigen_noise_param = c(0, 0.5),
+  antigen_noise_param = c(0, 1),
   serum_noise_rdistribution = stats::rnorm,
-  serum_noise_param = c(0, 0.5),
+  serum_noise_param = c(0, 1),
   seed
 )
 }
