@@ -1,13 +1,13 @@
 Package: acsimdata
-Title: What the Package Does (One Line, Title Case)
+Title: Simulated Data for Antigenic Cartography
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Sarah",
+           family = "James",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+           email = "slj38@cam.ac.uk",
+           comment = c(ORCID = "0000-0002-6969-1167"))
+Description: Creates simulated antigenic data for making antigenic maps with Racmacs.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
