@@ -7,7 +7,7 @@
 #' @param titre_noise_param Arguments for the titre_noise_rdistribution function
 #' @param antigen_noise_rdistribution Random distribution function for antigen noise
 #' @param antigen_noise_param Arguments for the antigen_noise_rdistribution function
-#' @param serum_noise_rdistribution Random distribution function for serum noise
+#' @param serum_noise_rdistribution Random distribution function for serum noise. This interacts with the max_log_titre of dist_to_hi_titre to set the highest titre for a serum.
 #' @param serum_noise_param Arguments for the serum_noise_rdistribution function
 #' @param seed Random seed
 #'
@@ -19,7 +19,7 @@
 #' noise_dists <- add_noise(m$dist)
 add_noise <- function(dists, titre_noise_rdistribution = stats::rnorm, titre_noise_param = c(0, 1),
                       antigen_noise_rdistribution = stats::rnorm, antigen_noise_param = c(0, 1),
-                      serum_noise_rdistribution = stats::rnorm, serum_noise_param = c(0, 1),
+                      serum_noise_rdistribution = stats::runif, serum_noise_param = c(0, 1),
                       seed) {
   which_antigens <- grep("AG", rownames(dists))
   which_sera <- grep("SR", colnames(dists))
@@ -69,7 +69,7 @@ add_antigen_noise <- function(map, dists, antigen_noise_rdistribution = stats::r
   )
 }
 
-add_serum_noise <- function(map, dists, serum_noise_rdistribution = stats::rnorm, serum_noise_param = c(0, 1)) {
+add_serum_noise <- function(map, dists, serum_noise_rdistribution = stats::runif, serum_noise_param = c(0, 1)) {
   add_noise(map, dists,
     titre_noise_param = c(0, 0),
     antigen_noise_param = c(0, 0),

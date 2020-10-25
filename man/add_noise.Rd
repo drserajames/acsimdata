@@ -10,7 +10,7 @@ add_noise(
   titre_noise_param = c(0, 1),
   antigen_noise_rdistribution = stats::rnorm,
   antigen_noise_param = c(0, 1),
-  serum_noise_rdistribution = stats::rnorm,
+  serum_noise_rdistribution = stats::runif,
   serum_noise_param = c(0, 1),
   seed
 )
@@ -26,7 +26,7 @@ add_noise(
 
 \item{antigen_noise_param}{Arguments for the antigen_noise_rdistribution function}
 
-\item{serum_noise_rdistribution}{Random distribution function for serum noise}
+\item{serum_noise_rdistribution}{Random distribution function for serum noise. This interacts with the max_log_titre of dist_to_hi_titre to set the highest titre for a serum.}
 
 \item{serum_noise_param}{Arguments for the serum_noise_rdistribution function}
 
