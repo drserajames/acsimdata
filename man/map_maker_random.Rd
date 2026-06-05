@@ -26,7 +26,7 @@ map_maker_random(
 
 \item{antigen_density}{The density of antigen points, which can be used to indirectly specify the range. Only used when range is not specified}
 
-\item{rdistribution}{A function that generates random numbers for the spatial distribution of points. The default is runif and a reasonable option is rnorm or a user generated function.}
+\item{rdistribution}{A function that generates random numbers for the spatial distribution of points. The default is runif, but can be another distribution or a user generated function.}
 
 \item{coincident}{TRUE if the serum points are in the same position as the antigen points, FALSE otherwise}
 
@@ -36,7 +36,7 @@ map_maker_random(
 list
 }
 \description{
-Create random map positions and return the positions and distance matrix. Currently produces a map as a line, square, cube or hypercube.
+Create random map positions and return the positions and distance matrix.
 }
 \examples{
 
