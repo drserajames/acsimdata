@@ -6,10 +6,14 @@
 \usage{
 sim_surv_tables(
   n_tables,
-  n_antigens_per_table,
-  n_sera_per_table,
-  n_ag_overlap,
-  n_sr_overlap,
+  n_ag_per_table,
+  n_sr_per_table,
+  n_ref_ag = 0L,
+  n_ref_sr = 0L,
+  n_ref_ag_overlap = NULL,
+  n_ref_sr_overlap = NULL,
+  p_sr_drop = NULL,
+  p_sr_gain = NULL,
   ag_drift = 3,
   range = 1,
   dimensions = 2,
@@ -24,19 +28,40 @@ sim_surv_tables(
 \arguments{
 \item{n_tables}{Number of sequential tables (time periods).}
 
-\item{n_antigens_per_table}{Total number of antigens in each table.}
+\item{n_ag_per_table}{Number of \emph{table-specific} (non-reference)
+antigens per table. Either a single integer (same for all tables) or a
+vector of length \code{n_tables}.}
 
-\item{n_sera_per_table}{Total number of sera in each table.}
+\item{n_sr_per_table}{Number of \emph{table-specific} sera per table.
+Either a single integer or a vector of length \code{n_tables}.}
 
-\item{n_ag_overlap}{Number of antigens shared between consecutive tables.
-Must be less than \code{n_antigens_per_table}.}
+\item{n_ref_ag}{Number of reference antigens per table. Either a single
+integer or a vector of length \code{n_tables}. Default 0 (no references).}
 
-\item{n_sr_overlap}{Number of sera shared between consecutive tables.
-Must be less than \code{n_sera_per_table}.}
+\item{n_ref_sr}{Starting number of reference sera. In deterministic mode
+this is held fixed per table; in probabilistic mode it is the panel size
+at table 1 only. Default 0.}
+
+\item{n_ref_ag_overlap}{Number of reference antigens carried over between
+consecutive tables. Must not exceed any element of \code{n_ref_ag}.
+Defaults to \code{n_ref_ag[1]}, giving a fixed reference antigen set.
+Set lower for a rotating antigen reference set.}
+
+\item{n_ref_sr_overlap}{Number of reference sera retained between consecutive
+tables (deterministic mode). Ignored when \code{p_sr_drop} or
+\code{p_sr_gain} is non-\code{NULL}. Defaults to \code{n_ref_sr[1]}
+(fixed panel).}
+
+\item{p_sr_drop}{Probability (in \eqn{[0, 1]}) that the single oldest
+reference serum is dropped at each table transition (probabilistic mode).
+Default \code{NULL} (use deterministic mode).}
+
+\item{p_sr_gain}{Probability (in \eqn{[0, 1]}) that a new reference serum
+is added at each table transition (probabilistic mode). Default
+\code{NULL} (use deterministic mode).}
 
 \item{ag_drift}{Antigenic distance drifted per table period, applied along
-the first map dimension. Controls how far apart successive antigen clusters
-are.}
+the first map dimension.}
 
 \item{range}{Maximum within-cluster spatial scatter of individual points
 around their cluster centre (upper bound passed to \code{rdistribution}).}
@@ -62,39 +87,74 @@ Default is \code{stats::runif}.}
 A list with elements:
 \describe{
 \item{merged_titre_table}{Full merged HI table across all time periods.
-Untested antigen-serum combinations are encoded as \code{"*"}.
-Where a pair appears in multiple tables due to overlap, the value from
-the most recent table is used.}
+Untested combinations are \code{"*"}. Where a pair appears in multiple
+tables (reference overlap), the most recent value is used.}
 \item{ag_coord}{Matrix of true antigen coordinates
 (total antigens x dimensions).}
 \item{sr_coord}{Matrix of true serum coordinates
 (total sera x dimensions).}
-\item{ag_table_membership}{Named list: for each table, a character vector
-of the antigen names it contains.}
-\item{sr_table_membership}{Named list: for each table, a character vector
-of the serum names it contains.}
+\item{ag_table_membership}{Named list: antigen names present in each
+table. Reference antigens appear first, then table-specific.}
+\item{sr_table_membership}{Named list: serum names present in each table.
+Reference sera appear first, then table-specific.}
 \item{tables}{Named list of per-table results, each being the output of
 \code{\link{dist_to_hi_titre}}.}
-\item{params}{List of input parameters.}
+\item{params}{List of input parameters, with size vectors as expanded.}
 }
 }
 \description{
 Generates a series of HI titre tables mimicking the structure of
-influenza surveillance data, where each table contains a partially
-overlapping sliding window of antigens and sera. The merged table has a
-banded structure of missing values because antigens and sera from
-non-overlapping time periods are never tested together.
+influenza surveillance data. Each table contains two groups of antigens and
+sera:
+\itemize{
+\item \strong{Reference} antigens/sera — a shared set that spans multiple
+tables, analogous to the reference strains used across consecutive
+surveillance periods.
+\item \strong{Table-specific} antigens/sera — unique to a single table
+and never repeated, analogous to the current circulating strains
+characterised in each period.
+}
 }
 \details{
-Antigens and sera are organised into a sliding window: each new table
-drops the \code{n_antigens_per_table - n_ag_overlap} oldest antigens and
-adds the same number of new ones. Spatial positions drift along the first
-dimension by \code{ag_drift} units per table period, reflecting antigenic
-evolution over time.
+\strong{Reference serum turnover — deterministic mode} (default): set
+\code{n_ref_sr_overlap} (or omit it for a fully fixed panel).  At each
+transition exactly \code{n_ref_sr - n_ref_sr_overlap} sera are replaced.
+
+\strong{Reference serum turnover — probabilistic mode}: provide
+\code{p_sr_drop} and/or \code{p_sr_gain}.  At each transition the single
+oldest reference serum is dropped independently with probability
+\code{p_sr_drop}, and a new reference serum is added independently with
+probability \code{p_sr_gain}.  Panel size therefore fluctuates over time.
+When either probability parameter is non-\code{NULL}, \code{n_ref_sr_overlap}
+is ignored.
+
+\strong{Reference antigen turnover}: controlled deterministically via
+\code{n_ref_ag_overlap} only (same sliding-window logic as the deterministic
+serum mode).
+
+Spatial positions drift along the first dimension by \code{ag_drift} units
+per table period based on when each antigen or serum is introduced,
+reflecting antigenic evolution over time.
 }
 \examples{
+# Simple case: 3 fixed reference antigens, 5 table-specific per table
 sim_surv_tables(
-  n_tables = 5, n_antigens_per_table = 8, n_sera_per_table = 6,
-  n_ag_overlap = 3, n_sr_overlap = 2, ag_drift = 3, range = 1, seed = 1
+  n_tables = 5, n_ag_per_table = 5, n_sr_per_table = 4,
+  n_ref_ag = 3, n_ref_sr = 2, ag_drift = 3, range = 1, seed = 1
+)
+
+# Rotating reference set (2 of 4 refs replaced each table)
+sim_surv_tables(
+  n_tables = 5, n_ag_per_table = 5, n_sr_per_table = 4,
+  n_ref_ag = 4, n_ref_sr = 3, n_ref_ag_overlap = 2, n_ref_sr_overlap = 2,
+  ag_drift = 3, range = 1, seed = 1
+)
+
+# Probabilistic serum turnover: 40\% chance of dropping oldest each transition,
+# 40\% chance of gaining a new one
+sim_surv_tables(
+  n_tables = 10, n_ag_per_table = 5, n_sr_per_table = 4,
+  n_ref_ag = 3, n_ref_sr = 4, p_sr_drop = 0.4, p_sr_gain = 0.4,
+  ag_drift = 3, range = 1, seed = 1
 )
 }
