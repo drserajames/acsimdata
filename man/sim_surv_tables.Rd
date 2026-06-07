@@ -14,6 +14,7 @@ sim_surv_tables(
   n_ref_sr_overlap = NULL,
   p_sr_drop = NULL,
   p_sr_gain = NULL,
+  sr_halflife = NULL,
   ag_drift = 3,
   range = 1,
   dimensions = 2,
@@ -53,12 +54,19 @@ tables (deterministic mode). Ignored when \code{p_sr_drop} or
 (fixed panel).}
 
 \item{p_sr_drop}{Probability (in \eqn{[0, 1]}) that the single oldest
-reference serum is dropped at each table transition (probabilistic mode).
-Default \code{NULL} (use deterministic mode).}
+reference serum is dropped at each table transition (oldest-first mode).
+Cannot be used together with \code{sr_halflife}. Default \code{NULL}.}
 
 \item{p_sr_gain}{Probability (in \eqn{[0, 1]}) that a new reference serum
-is added at each table transition (probabilistic mode). Default
-\code{NULL} (use deterministic mode).}
+is added at each table transition (probabilistic mode). Works with both
+\code{p_sr_drop} and \code{sr_halflife}. Default \code{NULL}.}
+
+\item{sr_halflife}{Expected number of table transitions a reference serum
+survives before being retired (half-life mode). Each serum in the panel is
+independently retired at each transition with probability
+\eqn{1 - 2^{-1/\text{sr\_halflife}}}, so a serum has a 50\\% chance of
+lasting at least \code{sr_halflife} transitions. Must be a single positive
+number. Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.}
 
 \item{ag_drift}{Antigenic distance drifted per table period, applied along
 the first map dimension.}
@@ -120,13 +128,24 @@ characterised in each period.
 \code{n_ref_sr_overlap} (or omit it for a fully fixed panel).  At each
 transition exactly \code{n_ref_sr - n_ref_sr_overlap} sera are replaced.
 
-\strong{Reference serum turnover — probabilistic mode}: provide
-\code{p_sr_drop} and/or \code{p_sr_gain}.  At each transition the single
-oldest reference serum is dropped independently with probability
-\code{p_sr_drop}, and a new reference serum is added independently with
-probability \code{p_sr_gain}.  Panel size therefore fluctuates over time.
-When either probability parameter is non-\code{NULL}, \code{n_ref_sr_overlap}
-is ignored.
+\strong{Reference serum turnover — probabilistic mode}: provide at least one
+of \code{p_sr_drop}, \code{p_sr_gain}, or \code{sr_halflife}.  When either
+probability parameter is non-\code{NULL}, \code{n_ref_sr_overlap} is ignored.
+Two dropping sub-modes are available (mutually exclusive):
+\itemize{
+\item \strong{Oldest-first} (\code{p_sr_drop}): at each transition the
+single oldest reference serum in the panel is dropped with probability
+\code{p_sr_drop}.
+\item \strong{Half-life} (\code{sr_halflife}): every serum in the panel is
+independently and identically retired at each transition with probability
+\eqn{1 - 2^{-1/\text{sr\_halflife}}}.  This memoryless geometric-survival
+model lets older sera persist by chance, generating the long-tailed
+persistence distributions seen in real surveillance data.  A serum with
+half-life \eqn{h} has a 50\\% chance of surviving at least \eqn{h}
+transitions. Cannot be combined with \code{p_sr_drop}.
+}
+In both sub-modes a new serum is independently added at each transition with
+probability \code{p_sr_gain}.
 
 \strong{Reference antigen turnover}: controlled deterministically via
 \code{n_ref_ag_overlap} only (same sliding-window logic as the deterministic
@@ -150,11 +169,17 @@ sim_surv_tables(
   ag_drift = 3, range = 1, seed = 1
 )
 
-# Probabilistic serum turnover: 40\% chance of dropping oldest each transition,
-# 40\% chance of gaining a new one
+# Oldest-first probabilistic turnover: 40\% chance of dropping oldest per transition
 sim_surv_tables(
   n_tables = 10, n_ag_per_table = 5, n_sr_per_table = 4,
   n_ref_ag = 3, n_ref_sr = 4, p_sr_drop = 0.4, p_sr_gain = 0.4,
+  ag_drift = 3, range = 1, seed = 1
+)
+
+# Half-life turnover: each serum has a 50\% chance of surviving 6 transitions
+sim_surv_tables(
+  n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
+  n_ref_ag = 3, n_ref_sr = 8, sr_halflife = 6, p_sr_gain = 0.4,
   ag_drift = 3, range = 1, seed = 1
 )
 }

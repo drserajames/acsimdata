@@ -399,3 +399,133 @@ test_that("prob mode: table-specific sera remain unique to one table", {
     expect_equal(length(intersect(spec_srs, other_srs)), 0L)
   }
 })
+
+
+# ── half-life serum turnover ───────────────────────────────────────────────────
+
+test_that("halflife: very large halflife keeps panel nearly fixed", {
+  r <- sim_surv_tables(
+    n_tables = 10, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = 1e6, p_sr_gain = 0,   # p_drop ≈ 0, never gains
+    ag_drift = 3, range = 1, seed = 1
+  )
+  # With halflife >> n_tables, all 4 ref sera should survive every table
+  for (t in seq_len(10)) {
+    ref_in_t <- length(r$sr_table_membership[[t]]) - 2L  # subtract 2 table-specific
+    expect_equal(ref_in_t, 4L)
+  }
+})
+
+test_that("halflife: very small halflife empties panel rapidly", {
+  # halflife = 0.01 → p_drop_each = 1 - 2^(-100) ≈ 1: almost all dropped each transition
+  r <- sim_surv_tables(
+    n_tables = 5, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 6,
+    sr_halflife = 0.01, p_sr_gain = 0,
+    ag_drift = 3, range = 1, seed = 1
+  )
+  # By table 3, reference panel should have shrunk substantially
+  n_ref_t3 <- length(r$sr_table_membership[["table3"]]) - 2L
+  expect_lt(n_ref_t3, 6L)
+})
+
+test_that("halflife: any serum can be dropped (not just oldest)", {
+  # With oldest-first model SR1 is always the first eligible to drop, so
+  # SR3 can only be absent from table 2 if SR1 and SR2 were also dropped.
+  # With half-life (p_drop_each = 0.5 per serum, halflife = 1), any serum can
+  # go while others survive — so SR1-present-and-SR3-absent should occur.
+  # Use n_sr_per_table = 3 (≥ 2) to avoid the single-column matrix edge case.
+  sr1_survives_sr3_drops <- vapply(seq_len(60L), function(s) {
+    r <- sim_surv_tables(
+      n_tables = 2, n_ag_per_table = 3, n_sr_per_table = 3,
+      n_ref_ag = 2, n_ref_sr = 3,
+      sr_halflife = 1, p_sr_gain = 0,
+      ag_drift = 3, range = 1, seed = s
+    )
+    n_spec <- 3L
+    ref_t2 <- head(r$sr_table_membership[["table2"]],
+                   length(r$sr_table_membership[["table2"]]) - n_spec)
+    "SR1" %in% ref_t2 && !("SR3" %in% ref_t2)
+  }, logical(1L))
+  # With oldest-first, SR3 is only absent when SR1 and SR2 are both dropped too
+  # (so SR1 could never be present when SR3 is absent).
+  # With half-life, P(SR1 survives and SR3 drops) = 0.5 × 0.5 = 0.25 per run.
+  expect_true(any(sr1_survives_sr3_drops))
+})
+
+test_that("halflife: seed reproduces results", {
+  make <- function(seed) sim_surv_tables(
+    n_tables = 8, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 5,
+    sr_halflife = 4, p_sr_gain = 0.3,
+    ag_drift = 3, range = 1, seed = seed
+  )
+  r1 <- make(55)
+  r2 <- make(55)
+  expect_identical(r1$merged_titre_table, r2$merged_titre_table)
+  expect_equal(r1$sr_coord, r2$sr_coord)
+})
+
+test_that("halflife: merged table dimensions are correct", {
+  r <- sim_surv_tables(
+    n_tables = 6, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = 3, p_sr_gain = 0.5,
+    ag_drift = 3, range = 1, seed = 7
+  )
+  expect_equal(nrow(r$merged_titre_table), nrow(r$ag_coord))
+  expect_equal(ncol(r$merged_titre_table), nrow(r$sr_coord))
+})
+
+test_that("halflife: tested pairs within each table are not '*'", {
+  r <- sim_surv_tables(
+    n_tables = 6, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = 3, p_sr_gain = 0.4,
+    ag_drift = 3, range = 1, seed = 11
+  )
+  for (t in seq_len(6)) {
+    ags <- r$ag_table_membership[[t]]
+    srs <- r$sr_table_membership[[t]]
+    expect_true(all(r$merged_titre_table[ags, srs] != "*"))
+  }
+})
+
+test_that("halflife: error when combined with p_sr_drop", {
+  expect_error(
+    sim_surv_tables(
+      n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
+      n_ref_ag = 2, n_ref_sr = 3,
+      sr_halflife = 4, p_sr_drop = 0.2
+    ),
+    "Specify either sr_halflife or p_sr_drop"
+  )
+})
+
+test_that("halflife: error on non-positive halflife", {
+  expect_error(
+    sim_surv_tables(
+      n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
+      n_ref_ag = 2, n_ref_sr = 3, sr_halflife = 0
+    ),
+    "single positive number"
+  )
+  expect_error(
+    sim_surv_tables(
+      n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
+      n_ref_ag = 2, n_ref_sr = 3, sr_halflife = -2
+    ),
+    "single positive number"
+  )
+})
+
+test_that("halflife: sr_halflife stored in params", {
+  r <- sim_surv_tables(
+    n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
+    n_ref_ag = 2, n_ref_sr = 3,
+    sr_halflife = 5, p_sr_gain = 0.3,
+    ag_drift = 3, range = 1, seed = 1
+  )
+  expect_equal(r$params$sr_halflife, 5)
+})

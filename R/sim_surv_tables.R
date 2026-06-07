@@ -20,13 +20,26 @@
 }
 
 # Build probabilistic reference-serum membership.
-# At each transition t → t+1:
-#   - the single oldest serum in the panel is dropped with probability p_drop
-#   - a new serum is added to the panel with probability p_gain
-# Panel size therefore fluctuates over time. Called after set.seed(), so
-# draws are reproducible.
-.build_ref_sr_probabilistic <- function(n_init, p_drop, p_gain, n_tables,
+#
+# Two dropping mechanisms (mutually exclusive; halflife takes precedence):
+#
+#   half-life mode  (halflife non-NULL):
+#     At each transition every serum in the panel is independently dropped
+#     with probability  p_drop_each = 1 - 2^(-1 / halflife).
+#     This is a memoryless geometric-survival model — any serum can survive
+#     longer than its half-life by chance, producing a realistic long tail.
+#
+#   oldest-first mode  (halflife NULL, p_drop > 0):
+#     The single oldest (first-in) serum is dropped with probability p_drop.
+#
+# In both modes a new serum is independently added with probability p_gain.
+# Called after set.seed(), so all draws are reproducible.
+.build_ref_sr_probabilistic <- function(n_init, p_drop = 0, p_gain = 0,
+                                        halflife = NULL, n_tables,
                                         start_idx = 1L) {
+  use_halflife <- !is.null(halflife)
+  p_drop_each  <- if (use_halflife) 1 - 2^(-1 / halflife) else NULL
+
   membership   <- vector("list", n_tables)
   intro_table  <- rep(1L, n_init)
   next_idx     <- as.integer(start_idx) + n_init
@@ -34,9 +47,17 @@
   membership[[1L]] <- current_pool
 
   for (t in seq_len(n_tables - 1L) + 1L) {
-    # Drop the oldest (first) serum with probability p_drop
-    if (length(current_pool) > 0L && stats::runif(1L) < p_drop) {
-      current_pool <- current_pool[-1L]
+    if (use_halflife) {
+      # Each serum independently dropped
+      if (length(current_pool) > 0L) {
+        keep         <- stats::runif(length(current_pool)) >= p_drop_each
+        current_pool <- current_pool[keep]
+      }
+    } else {
+      # Drop the oldest (first-in) serum with probability p_drop
+      if (length(current_pool) > 0L && stats::runif(1L) < p_drop) {
+        current_pool <- current_pool[-1L]
+      }
     }
     # Gain a new serum with probability p_gain
     if (stats::runif(1L) < p_gain) {
@@ -73,13 +94,24 @@
 #' \code{n_ref_sr_overlap} (or omit it for a fully fixed panel).  At each
 #' transition exactly \code{n_ref_sr - n_ref_sr_overlap} sera are replaced.
 #'
-#' \strong{Reference serum turnover — probabilistic mode}: provide
-#' \code{p_sr_drop} and/or \code{p_sr_gain}.  At each transition the single
-#' oldest reference serum is dropped independently with probability
-#' \code{p_sr_drop}, and a new reference serum is added independently with
-#' probability \code{p_sr_gain}.  Panel size therefore fluctuates over time.
-#' When either probability parameter is non-\code{NULL}, \code{n_ref_sr_overlap}
-#' is ignored.
+#' \strong{Reference serum turnover — probabilistic mode}: provide at least one
+#' of \code{p_sr_drop}, \code{p_sr_gain}, or \code{sr_halflife}.  When either
+#' probability parameter is non-\code{NULL}, \code{n_ref_sr_overlap} is ignored.
+#' Two dropping sub-modes are available (mutually exclusive):
+#' \itemize{
+#'   \item \strong{Oldest-first} (\code{p_sr_drop}): at each transition the
+#'     single oldest reference serum in the panel is dropped with probability
+#'     \code{p_sr_drop}.
+#'   \item \strong{Half-life} (\code{sr_halflife}): every serum in the panel is
+#'     independently and identically retired at each transition with probability
+#'     \eqn{1 - 2^{-1/\text{sr\_halflife}}}.  This memoryless geometric-survival
+#'     model lets older sera persist by chance, generating the long-tailed
+#'     persistence distributions seen in real surveillance data.  A serum with
+#'     half-life \eqn{h} has a 50\% chance of surviving at least \eqn{h}
+#'     transitions. Cannot be combined with \code{p_sr_drop}.
+#' }
+#' In both sub-modes a new serum is independently added at each transition with
+#' probability \code{p_sr_gain}.
 #'
 #' \strong{Reference antigen turnover}: controlled deterministically via
 #' \code{n_ref_ag_overlap} only (same sliding-window logic as the deterministic
@@ -109,11 +141,17 @@
 #'   \code{p_sr_gain} is non-\code{NULL}. Defaults to \code{n_ref_sr[1]}
 #'   (fixed panel).
 #' @param p_sr_drop Probability (in \eqn{[0, 1]}) that the single oldest
-#'   reference serum is dropped at each table transition (probabilistic mode).
-#'   Default \code{NULL} (use deterministic mode).
+#'   reference serum is dropped at each table transition (oldest-first mode).
+#'   Cannot be used together with \code{sr_halflife}. Default \code{NULL}.
 #' @param p_sr_gain Probability (in \eqn{[0, 1]}) that a new reference serum
-#'   is added at each table transition (probabilistic mode). Default
-#'   \code{NULL} (use deterministic mode).
+#'   is added at each table transition (probabilistic mode). Works with both
+#'   \code{p_sr_drop} and \code{sr_halflife}. Default \code{NULL}.
+#' @param sr_halflife Expected number of table transitions a reference serum
+#'   survives before being retired (half-life mode). Each serum in the panel is
+#'   independently retired at each transition with probability
+#'   \eqn{1 - 2^{-1/\text{sr\_halflife}}}, so a serum has a 50\% chance of
+#'   lasting at least \code{sr_halflife} transitions. Must be a single positive
+#'   number. Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.
 #' @param ag_drift Antigenic distance drifted per table period, applied along
 #'   the first map dimension.
 #' @param range Maximum within-cluster spatial scatter of individual points
@@ -162,11 +200,17 @@
 #'   ag_drift = 3, range = 1, seed = 1
 #' )
 #'
-#' # Probabilistic serum turnover: 40% chance of dropping oldest each transition,
-#' # 40% chance of gaining a new one
+#' # Oldest-first probabilistic turnover: 40% chance of dropping oldest per transition
 #' sim_surv_tables(
 #'   n_tables = 10, n_ag_per_table = 5, n_sr_per_table = 4,
 #'   n_ref_ag = 3, n_ref_sr = 4, p_sr_drop = 0.4, p_sr_gain = 0.4,
+#'   ag_drift = 3, range = 1, seed = 1
+#' )
+#'
+#' # Half-life turnover: each serum has a 50% chance of surviving 6 transitions
+#' sim_surv_tables(
+#'   n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
+#'   n_ref_ag = 3, n_ref_sr = 8, sr_halflife = 6, p_sr_gain = 0.4,
 #'   ag_drift = 3, range = 1, seed = 1
 #' )
 sim_surv_tables <- function(n_tables,
@@ -178,13 +222,14 @@ sim_surv_tables <- function(n_tables,
                             n_ref_sr_overlap = NULL,
                             p_sr_drop        = NULL,
                             p_sr_gain        = NULL,
+                            sr_halflife      = NULL,
                             ag_drift = 3, range = 1, dimensions = 2,
                             base = 2, divisor = 10,
                             max_log_titre = 9, min_log_titre = 0,
                             rdistribution = stats::runif,
                             seed) {
 
-  use_prob_sr <- !is.null(p_sr_drop) || !is.null(p_sr_gain)
+  use_prob_sr <- !is.null(p_sr_drop) || !is.null(p_sr_gain) || !is.null(sr_halflife)
 
   # ── Validate / default overlap parameters ────────────────────────────────────
   if (is.null(n_ref_ag_overlap)) n_ref_ag_overlap <- n_ref_ag[1L]
@@ -192,6 +237,12 @@ sim_surv_tables <- function(n_tables,
   if (!use_prob_sr) {
     if (is.null(n_ref_sr_overlap)) n_ref_sr_overlap <- n_ref_sr[1L]
   } else {
+    if (!is.null(sr_halflife) && !is.null(p_sr_drop)) {
+      stop("Specify either sr_halflife or p_sr_drop, not both")
+    }
+    if (!is.null(sr_halflife) && (length(sr_halflife) != 1L || sr_halflife <= 0)) {
+      stop("sr_halflife must be a single positive number")
+    }
     p_sr_drop <- if (is.null(p_sr_drop)) 0 else p_sr_drop
     p_sr_gain <- if (is.null(p_sr_gain)) 0 else p_sr_gain
     if (p_sr_drop < 0 || p_sr_drop > 1) stop("p_sr_drop must be in [0, 1]")
@@ -222,6 +273,7 @@ sim_surv_tables <- function(n_tables,
       n_init    = n_ref_sr[1L],
       p_drop    = p_sr_drop,
       p_gain    = p_sr_gain,
+      halflife  = sr_halflife,
       n_tables  = n_tables,
       start_idx = 1L
     )
@@ -300,6 +352,7 @@ sim_surv_tables <- function(n_tables,
       n_ref_sr_overlap = if (use_prob_sr) NULL else n_ref_sr_overlap,
       p_sr_drop        = if (use_prob_sr) p_sr_drop else NULL,
       p_sr_gain        = if (use_prob_sr) p_sr_gain else NULL,
+      sr_halflife      = sr_halflife,
       ag_drift         = ag_drift,
       range            = range,
       dimensions       = dimensions,
