@@ -61,12 +61,18 @@ Cannot be used together with \code{sr_halflife}. Default \code{NULL}.}
 is added at each table transition (probabilistic mode). Works with both
 \code{p_sr_drop} and \code{sr_halflife}. Default \code{NULL}.}
 
-\item{sr_halflife}{Expected number of table transitions a reference serum
-survives before being retired (half-life mode). Each serum in the panel is
-independently retired at each transition with probability
-\eqn{1 - 2^{-1/\text{sr\_halflife}}}, so a serum has a 50\\% chance of
-lasting at least \code{sr_halflife} transitions. Must be a single positive
-number. Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.}
+\item{sr_halflife}{Expected retention half-life for reference sera (half-life
+mode).  A serum with half-life \eqn{h} is independently retired at each
+transition with probability \eqn{1 - 2^{-1/h}}, giving a 50\\% chance of
+surviving at least \eqn{h} transitions.  Can be specified as:
+\itemize{
+\item A single positive number — the same half-life is used for every
+reference serum (initial and subsequently gained).
+\item A numeric vector of length \code{n_ref_sr} — one half-life per
+initial reference serum, in order of introduction.  Sera added
+subsequently via \code{p_sr_gain} are assigned the mean of this vector.
+}
+Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.}
 
 \item{ag_drift}{Antigenic distance drifted per table period, applied along
 the first map dimension.}
@@ -176,10 +182,18 @@ sim_surv_tables(
   ag_drift = 3, range = 1, seed = 1
 )
 
-# Half-life turnover: each serum has a 50\% chance of surviving 6 transitions
+# Half-life turnover: uniform half-life of 6 transitions for every serum
 sim_surv_tables(
   n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
   n_ref_ag = 3, n_ref_sr = 8, sr_halflife = 6, p_sr_gain = 0.4,
   ag_drift = 3, range = 1, seed = 1
+)
+
+# Per-serum half-life: stable legacy sera plus shorter-lived recent ones
+sim_surv_tables(
+  n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
+  n_ref_ag = 3, n_ref_sr = 4,
+  sr_halflife = c(20, 20, 4, 2),   # SR1/SR2 stable; SR3/SR4 short-lived
+  p_sr_gain = 0.3, ag_drift = 3, range = 1, seed = 1
 )
 }

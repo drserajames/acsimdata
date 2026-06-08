@@ -509,14 +509,14 @@ test_that("halflife: error on non-positive halflife", {
       n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
       n_ref_ag = 2, n_ref_sr = 3, sr_halflife = 0
     ),
-    "single positive number"
+    "positive numbers"
   )
   expect_error(
     sim_surv_tables(
       n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
       n_ref_ag = 2, n_ref_sr = 3, sr_halflife = -2
     ),
-    "single positive number"
+    "positive numbers"
   )
 })
 
@@ -528,4 +528,103 @@ test_that("halflife: sr_halflife stored in params", {
     ag_drift = 3, range = 1, seed = 1
   )
   expect_equal(r$params$sr_halflife, 5)
+})
+
+
+# ── per-serum half-life ────────────────────────────────────────────────────────
+
+test_that("per-serum halflife: very short halflife for one serum causes it to drop often", {
+  # SR1 halflife = 0.01 → p_drop ≈ 1 (almost always dropped each transition)
+  # SR2, SR3 halflife = 1e6 → p_drop ≈ 0 (almost never dropped)
+  sr1_in_t2 <- vapply(seq_len(30L), function(s) {
+    r <- sim_surv_tables(
+      n_tables = 2, n_ag_per_table = 3, n_sr_per_table = 3,
+      n_ref_ag = 2, n_ref_sr = 3,
+      sr_halflife = c(0.01, 1e6, 1e6), p_sr_gain = 0,
+      ag_drift = 3, range = 1, seed = s
+    )
+    ref_t2 <- head(r$sr_table_membership[["table2"]],
+                   length(r$sr_table_membership[["table2"]]) - 3L)
+    "SR1" %in% ref_t2
+  }, logical(1L))
+  # SR1 should almost never survive (across 30 seeds, expect it absent most of the time)
+  expect_lt(sum(sr1_in_t2), 5L)
+})
+
+test_that("per-serum halflife: very long halflife for one serum keeps it in panel", {
+  # SR1 halflife = 1e6 → almost never dropped; SR2, SR3 short-lived
+  sr1_in_all <- vapply(seq_len(20L), function(s) {
+    r <- sim_surv_tables(
+      n_tables = 5, n_ag_per_table = 3, n_sr_per_table = 3,
+      n_ref_ag = 2, n_ref_sr = 3,
+      sr_halflife = c(1e6, 0.01, 0.01), p_sr_gain = 0,
+      ag_drift = 3, range = 1, seed = s
+    )
+    all(vapply(r$sr_table_membership, function(srs) "SR1" %in% srs, logical(1L)))
+  }, logical(1L))
+  # SR1 should persist in every table for the vast majority of seeds
+  expect_gt(sum(sr1_in_all), 15L)
+})
+
+test_that("per-serum halflife: seed reproduces results", {
+  make <- function(seed) sim_surv_tables(
+    n_tables = 6, n_ag_per_table = 3, n_sr_per_table = 3,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = c(10, 4, 2, 1), p_sr_gain = 0.2,
+    ag_drift = 3, range = 1, seed = seed
+  )
+  expect_identical(make(42)$merged_titre_table, make(42)$merged_titre_table)
+  expect_equal(make(42)$sr_coord, make(42)$sr_coord)
+})
+
+test_that("per-serum halflife: scalar and length-1 vector are equivalent", {
+  r_scalar <- sim_surv_tables(
+    n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 3,
+    n_ref_ag = 2, n_ref_sr = 3,
+    sr_halflife = 5, p_sr_gain = 0,
+    ag_drift = 3, range = 1, seed = 7
+  )
+  r_vec <- sim_surv_tables(
+    n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 3,
+    n_ref_ag = 2, n_ref_sr = 3,
+    sr_halflife = c(5, 5, 5), p_sr_gain = 0,
+    ag_drift = 3, range = 1, seed = 7
+  )
+  expect_identical(r_scalar$merged_titre_table, r_vec$merged_titre_table)
+})
+
+test_that("per-serum halflife: error when vector length does not match n_ref_sr", {
+  expect_error(
+    sim_surv_tables(
+      n_tables = 4, n_ag_per_table = 3, n_sr_per_table = 2,
+      n_ref_ag = 2, n_ref_sr = 3,
+      sr_halflife = c(5, 5)   # length 2, but n_ref_sr = 3
+    ),
+    "n_ref_sr"
+  )
+})
+
+test_that("per-serum halflife: merged table dimensions still correct", {
+  r <- sim_surv_tables(
+    n_tables = 5, n_ag_per_table = 3, n_sr_per_table = 3,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = c(10, 4, 2, 1), p_sr_gain = 0.3,
+    ag_drift = 3, range = 1, seed = 3
+  )
+  expect_equal(nrow(r$merged_titre_table), nrow(r$ag_coord))
+  expect_equal(ncol(r$merged_titre_table), nrow(r$sr_coord))
+})
+
+test_that("per-serum halflife: tested pairs within each table are not '*'", {
+  r <- sim_surv_tables(
+    n_tables = 5, n_ag_per_table = 3, n_sr_per_table = 3,
+    n_ref_ag = 2, n_ref_sr = 4,
+    sr_halflife = c(10, 4, 2, 1), p_sr_gain = 0.3,
+    ag_drift = 3, range = 1, seed = 5
+  )
+  for (t in seq_len(5)) {
+    ags <- r$ag_table_membership[[t]]
+    srs <- r$sr_table_membership[[t]]
+    expect_true(all(r$merged_titre_table[ags, srs] != "*"))
+  }
 })

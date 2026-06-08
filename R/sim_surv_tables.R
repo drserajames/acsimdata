@@ -24,10 +24,12 @@
 # Two dropping mechanisms (mutually exclusive; halflife takes precedence):
 #
 #   half-life mode  (halflife non-NULL):
-#     At each transition every serum in the panel is independently dropped
-#     with probability  p_drop_each = 1 - 2^(-1 / halflife).
-#     This is a memoryless geometric-survival model — any serum can survive
-#     longer than its half-life by chance, producing a realistic long tail.
+#     halflife may be a scalar (same for every serum) or a vector whose length
+#     equals n_init (one per initial reference serum, in order of introduction).
+#     At each transition every serum is independently dropped with its own
+#     per-transition probability  p_i = 1 - 2^(-1 / halflife_i).
+#     Sera added later (via p_gain) are assigned the mean of the initial
+#     halflife vector.
 #
 #   oldest-first mode  (halflife NULL, p_drop > 0):
 #     The single oldest (first-in) serum is dropped with probability p_drop.
@@ -38,20 +40,30 @@
                                         halflife = NULL, n_tables,
                                         start_idx = 1L) {
   use_halflife <- !is.null(halflife)
-  p_drop_each  <- if (use_halflife) 1 - 2^(-1 / halflife) else NULL
 
-  membership   <- vector("list", n_tables)
-  intro_table  <- rep(1L, n_init)
-  next_idx     <- as.integer(start_idx) + n_init
-  current_pool <- seq(as.integer(start_idx), length.out = n_init)
+  if (use_halflife) {
+    # Expand scalar to a per-serum vector; compute per-serum drop probabilities
+    halflife_vec   <- rep_len(halflife, n_init)          # length n_init
+    p_drop_init    <- 1 - 2^(-1 / halflife_vec)
+    # Gained sera get the mean halflife of the original panel (NaN-safe for n_init=0)
+    p_drop_gained  <- if (n_init > 0L) 1 - 2^(-1 / mean(halflife_vec)) else 0
+  }
+
+  membership      <- vector("list", n_tables)
+  intro_table     <- rep(1L, n_init)
+  next_idx        <- as.integer(start_idx) + n_init
+  current_pool    <- seq(as.integer(start_idx), length.out = n_init)
+  # Parallel vector: per-serum drop probability (only used in halflife mode)
+  current_p_drop  <- if (use_halflife) p_drop_init else numeric(0L)
   membership[[1L]] <- current_pool
 
   for (t in seq_len(n_tables - 1L) + 1L) {
     if (use_halflife) {
-      # Each serum independently dropped
+      # Each serum dropped independently with its own probability
       if (length(current_pool) > 0L) {
-        keep         <- stats::runif(length(current_pool)) >= p_drop_each
-        current_pool <- current_pool[keep]
+        keep           <- stats::runif(length(current_pool)) >= current_p_drop
+        current_pool   <- current_pool[keep]
+        current_p_drop <- current_p_drop[keep]
       }
     } else {
       # Drop the oldest (first-in) serum with probability p_drop
@@ -62,6 +74,7 @@
     # Gain a new serum with probability p_gain
     if (stats::runif(1L) < p_gain) {
       current_pool <- c(current_pool, next_idx)
+      if (use_halflife) current_p_drop <- c(current_p_drop, p_drop_gained)
       intro_table  <- c(intro_table, t)
       next_idx     <- next_idx + 1L
     }
@@ -146,12 +159,18 @@
 #' @param p_sr_gain Probability (in \eqn{[0, 1]}) that a new reference serum
 #'   is added at each table transition (probabilistic mode). Works with both
 #'   \code{p_sr_drop} and \code{sr_halflife}. Default \code{NULL}.
-#' @param sr_halflife Expected number of table transitions a reference serum
-#'   survives before being retired (half-life mode). Each serum in the panel is
-#'   independently retired at each transition with probability
-#'   \eqn{1 - 2^{-1/\text{sr\_halflife}}}, so a serum has a 50\% chance of
-#'   lasting at least \code{sr_halflife} transitions. Must be a single positive
-#'   number. Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.
+#' @param sr_halflife Expected retention half-life for reference sera (half-life
+#'   mode).  A serum with half-life \eqn{h} is independently retired at each
+#'   transition with probability \eqn{1 - 2^{-1/h}}, giving a 50\% chance of
+#'   surviving at least \eqn{h} transitions.  Can be specified as:
+#'   \itemize{
+#'     \item A single positive number — the same half-life is used for every
+#'       reference serum (initial and subsequently gained).
+#'     \item A numeric vector of length \code{n_ref_sr} — one half-life per
+#'       initial reference serum, in order of introduction.  Sera added
+#'       subsequently via \code{p_sr_gain} are assigned the mean of this vector.
+#'   }
+#'   Cannot be combined with \code{p_sr_drop}. Default \code{NULL}.
 #' @param ag_drift Antigenic distance drifted per table period, applied along
 #'   the first map dimension.
 #' @param range Maximum within-cluster spatial scatter of individual points
@@ -207,11 +226,19 @@
 #'   ag_drift = 3, range = 1, seed = 1
 #' )
 #'
-#' # Half-life turnover: each serum has a 50% chance of surviving 6 transitions
+#' # Half-life turnover: uniform half-life of 6 transitions for every serum
 #' sim_surv_tables(
 #'   n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
 #'   n_ref_ag = 3, n_ref_sr = 8, sr_halflife = 6, p_sr_gain = 0.4,
 #'   ag_drift = 3, range = 1, seed = 1
+#' )
+#'
+#' # Per-serum half-life: stable legacy sera plus shorter-lived recent ones
+#' sim_surv_tables(
+#'   n_tables = 20, n_ag_per_table = 5, n_sr_per_table = 4,
+#'   n_ref_ag = 3, n_ref_sr = 4,
+#'   sr_halflife = c(20, 20, 4, 2),   # SR1/SR2 stable; SR3/SR4 short-lived
+#'   p_sr_gain = 0.3, ag_drift = 3, range = 1, seed = 1
 #' )
 sim_surv_tables <- function(n_tables,
                             n_ag_per_table,
@@ -240,9 +267,6 @@ sim_surv_tables <- function(n_tables,
     if (!is.null(sr_halflife) && !is.null(p_sr_drop)) {
       stop("Specify either sr_halflife or p_sr_drop, not both")
     }
-    if (!is.null(sr_halflife) && (length(sr_halflife) != 1L || sr_halflife <= 0)) {
-      stop("sr_halflife must be a single positive number")
-    }
     p_sr_drop <- if (is.null(p_sr_drop)) 0 else p_sr_drop
     p_sr_gain <- if (is.null(p_sr_gain)) 0 else p_sr_gain
     if (p_sr_drop < 0 || p_sr_drop > 1) stop("p_sr_drop must be in [0, 1]")
@@ -254,6 +278,19 @@ sim_surv_tables <- function(n_tables,
   n_sr_per_table <- rep_len(n_sr_per_table, n_tables)
   n_ref_ag       <- rep_len(n_ref_ag,       n_tables)
   n_ref_sr       <- rep_len(n_ref_sr,       n_tables)
+
+  # Validate sr_halflife here, after n_ref_sr is recycled, so we can check vector length
+  if (!is.null(sr_halflife)) {
+    if (!is.numeric(sr_halflife) || any(sr_halflife <= 0)) {
+      stop("sr_halflife must contain positive numbers")
+    }
+    if (length(sr_halflife) != 1L && length(sr_halflife) != n_ref_sr[1L]) {
+      stop(sprintf(
+        "sr_halflife must be length 1 or length n_ref_sr (%d), got length %d",
+        n_ref_sr[1L], length(sr_halflife)
+      ))
+    }
+  }
 
   if (any(n_ref_ag_overlap > n_ref_ag)) {
     stop("n_ref_ag_overlap cannot exceed n_ref_ag")
