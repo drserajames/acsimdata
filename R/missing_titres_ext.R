@@ -397,3 +397,126 @@ miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
                         keep_homologous = keep_homologous, seed = seed)
   )
 }
+
+
+#' Remove titres that are far from the table diagonal (banded missingness)
+#'
+#' Marks cells missing when the row and column index differ by more than
+#' \code{bandwidth}, producing a banded structure that mimics surveillance
+#' practice: contemporaneous antigen–serum pairs are tested (close to the
+#' diagonal) while very distant pairs are not.  Optionally reduces the serum
+#' panel to \code{n_sera} columns by dropping the most sparsely filled sera
+#' after banding.
+#'
+#' @param titre A character matrix of titres (e.g.\ \code{lessthan_titre} from
+#'   \code{\link{dist_to_hi_titre}}).
+#' @param bandwidth Non-negative number.  Cells where
+#'   \eqn{|\text{row index} - \text{col index}| > \text{bandwidth}} are set to
+#'   \code{"*"}.  \code{bandwidth = 0} keeps only the main diagonal;
+#'   a value larger than the matrix dimensions keeps everything.
+#' @param n_sera If non-\code{NULL}, the number of sera (columns) to retain
+#'   after banding.  The \code{ncol(titre) - n_sera} sera with the fewest
+#'   non-\code{"*"} entries after banding are dropped (all their cells become
+#'   \code{"*"} in \code{rm_titre}, and the column is absent from
+#'   \code{titre_reduced}).  Ties are broken by dropping lower-indexed columns
+#'   first.  Must be a positive integer no greater than \code{ncol(titre)}.
+#' @param keep_homologous Whether to protect homologous (diagonal) titre pairs
+#'   from banding.  Default \code{TRUE}; only relevant when
+#'   \code{bandwidth = 0}.
+#'
+#' @return A list:
+#' \describe{
+#'   \item{full_titre}{The original titre matrix (unchanged).}
+#'   \item{rm_titre}{Titre matrix with the same dimensions as \code{full_titre}.
+#'     Off-band cells and, if \code{n_sera} is given, cells of dropped sera are
+#'     replaced by \code{"*"}.}
+#'   \item{titre_reduced}{Banded titre matrix with the dropped sera columns
+#'     removed.  When \code{n_sera} is \code{NULL} this is identical to
+#'     \code{rm_titre}.}
+#'   \item{dropped_sera}{Character vector of serum names removed when reducing
+#'     to \code{n_sera} (empty when \code{n_sera} is \code{NULL}).}
+#'   \item{rm_ind}{Linear indices (into \code{full_titre}) of cells newly set
+#'     to \code{"*"} by this function (banding + serum dropping combined).}
+#'   \item{rm_ind_arr}{Array (row, col) indices of \emph{all} \code{"*"} cells
+#'     in \code{rm_titre}.}
+#'   \item{params}{List of input parameters.}
+#' }
+#' @export
+#'
+#' @examples
+#' m  <- map_maker_random(8, 8, 10, seed = 1)
+#' ti <- dist_to_hi_titre(m$dist)
+#' # Keep only entries within 2 steps of the diagonal
+#' miss_titres_banded(ti$lessthan_titre, bandwidth = 2)
+#' # Same, then reduce to 5 sera
+#' miss_titres_banded(ti$lessthan_titre, bandwidth = 2, n_sera = 5)
+miss_titres_banded <- function(titre, bandwidth, n_sera = NULL,
+                               keep_homologous = TRUE) {
+
+  n_ag <- nrow(titre)
+  n_sr <- ncol(titre)
+
+  # ── Validate ─────────────────────────────────────────────────────────────────
+  if (!is.numeric(bandwidth) || length(bandwidth) != 1L || bandwidth < 0) {
+    stop("bandwidth must be a single non-negative number")
+  }
+
+  if (!is.null(n_sera)) {
+    if (!is.numeric(n_sera) || length(n_sera) != 1L ||
+        n_sera < 1L || n_sera > n_sr) {
+      stop(sprintf(
+        "n_sera must be a positive integer no greater than ncol(titre) (%d)", n_sr
+      ))
+    }
+    n_sera <- as.integer(n_sera)
+  }
+
+  # ── Step 1: Bandwidth missingness ────────────────────────────────────────────
+  tv           <- as.vector(titre)
+  already_star <- tv == "*"
+
+  ri         <- as.vector(row(titre))
+  ci         <- as.vector(col(titre))
+  off_band   <- abs(ri - ci) > bandwidth
+  band_cand  <- which(off_band & !already_star)
+
+  if (keep_homologous) {
+    band_cand <- setdiff(band_cand, .homologous_ind(titre))
+  }
+
+  rm_titre          <- titre
+  rm_titre[band_cand] <- "*"
+
+  # ── Step 2: Serum dropping ───────────────────────────────────────────────────
+  dropped_sera <- character(0L)
+
+  if (!is.null(n_sera) && n_sera < n_sr) {
+    n_drop      <- n_sr - n_sera
+    # Number of non-missing entries per column after banding
+    n_present   <- colSums(rm_titre != "*")
+    # Drop the n_drop most sparse sera; ties broken by lower column index first
+    drop_idx    <- order(n_present)[seq_len(n_drop)]
+    dropped_sera <- colnames(rm_titre)[drop_idx]
+    rm_titre[, drop_idx] <- "*"
+  }
+
+  # ── Outputs ──────────────────────────────────────────────────────────────────
+  # rm_ind: cells newly set to "*" by this function (not pre-existing stars)
+  new_star <- which(as.vector(rm_titre) == "*" & !already_star)
+
+  # titre_reduced: rm_titre with the dropped sera columns removed
+  keep_cols     <- setdiff(seq_len(n_sr), match(dropped_sera, colnames(rm_titre)))
+  titre_reduced <- rm_titre[, keep_cols, drop = FALSE]
+
+  list(
+    full_titre    = titre,
+    rm_titre      = rm_titre,
+    titre_reduced = titre_reduced,
+    dropped_sera  = dropped_sera,
+    rm_ind        = new_star,
+    rm_ind_arr    = which(rm_titre == "*", arr.ind = TRUE),
+    params        = list(bandwidth       = bandwidth,
+                         n_sera          = n_sera,
+                         keep_homologous = keep_homologous)
+  )
+}

@@ -258,3 +258,157 @@ test_that("by_distance: rm_ind_arr reflects all stars in rm_titre", {
                                   f$m$antigen_coord, f$m$sera_coord, seed = 42)
   expect_equal(nrow(byd$rm_ind_arr), sum(as.vector(byd$rm_titre) == "*"))
 })
+
+
+# ── miss_titres_banded ────────────────────────────────────────────────────────
+
+test_that("banded: rm_titre has same dimensions as input", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2)
+  expect_equal(dim(b$rm_titre), dim(f$ti$lessthan_titre))
+})
+
+test_that("banded: cells beyond bandwidth are '*'", {
+  f   <- make_fixture()
+  bw  <- 1L
+  b   <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = bw,
+                             keep_homologous = FALSE)
+  n_ag <- nrow(b$rm_titre)
+  n_sr <- ncol(b$rm_titre)
+  for (i in seq_len(n_ag)) {
+    for (j in seq_len(n_sr)) {
+      if (abs(i - j) > bw) {
+        expect_equal(b$rm_titre[i, j], "*",
+                     info = sprintf("cell [%d, %d] should be '*'", i, j))
+      }
+    }
+  }
+})
+
+test_that("banded: cells within bandwidth are not changed", {
+  f   <- make_fixture()
+  bw  <- 2L
+  b   <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = bw)
+  n_ag <- nrow(b$rm_titre)
+  n_sr <- ncol(b$rm_titre)
+  for (i in seq_len(n_ag)) {
+    for (j in seq_len(n_sr)) {
+      if (abs(i - j) <= bw) {
+        expect_equal(b$rm_titre[i, j], f$ti$lessthan_titre[i, j],
+                     info = sprintf("cell [%d, %d] should be unchanged", i, j))
+      }
+    }
+  }
+})
+
+test_that("banded: keep_homologous protects diagonal with bandwidth = 0", {
+  f <- make_fixture()
+  # bandwidth = 0 would remove all off-diagonal entries; homologous are on-diagonal
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 0,
+                           keep_homologous = TRUE)
+  homo <- acsimdata:::.homologous_ind(f$ti$lessthan_titre)
+  expect_true(all(as.vector(b$rm_titre)[homo] != "*"))
+})
+
+test_that("banded: bandwidth = 0 keeps only diagonal entries", {
+  f    <- make_fixture()
+  b    <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 0,
+                              keep_homologous = FALSE)
+  n_ag <- nrow(b$rm_titre)
+  n_sr <- ncol(b$rm_titre)
+  for (i in seq_len(n_ag)) {
+    for (j in seq_len(n_sr)) {
+      if (i != j) {
+        expect_equal(b$rm_titre[i, j], "*",
+                     info = sprintf("off-diagonal [%d,%d] should be '*'", i, j))
+      } else {
+        expect_equal(b$rm_titre[i, j], f$ti$lessthan_titre[i, j],
+                     info = sprintf("diagonal [%d,%d] should be unchanged", i, j))
+      }
+    }
+  }
+})
+
+test_that("banded: large bandwidth leaves matrix unchanged", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1000)
+  expect_equal(b$rm_titre, f$ti$lessthan_titre)
+  expect_length(b$rm_ind, 0L)
+})
+
+test_that("banded: n_sera reduces columns in titre_reduced", {
+  f      <- make_fixture()            # 5 × 5
+  target <- 3L
+  b      <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1, n_sera = target)
+  expect_equal(ncol(b$titre_reduced), target)
+  expect_equal(nrow(b$titre_reduced), nrow(f$ti$lessthan_titre))
+})
+
+test_that("banded: dropped_sera has n_sr - n_sera entries", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1, n_sera = 3L)
+  expect_length(b$dropped_sera, ncol(f$ti$lessthan_titre) - 3L)
+})
+
+test_that("banded: n_sera = n_sr drops nothing", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2,
+                           n_sera = ncol(f$ti$lessthan_titre))
+  expect_length(b$dropped_sera, 0L)
+  expect_equal(b$titre_reduced, b$rm_titre)
+})
+
+test_that("banded: most sparse sera are dropped (bandwidth = 1, n_sera = 4)", {
+  # With bandwidth = 1 on a 5×5 matrix:
+  #   SR1 has 2 non-missing cells (rows 1, 2)
+  #   SR5 has 2 non-missing cells (rows 4, 5)
+  #   SR2, SR3, SR4 each have 3 non-missing cells
+  # Dropping 1 serum → SR1 dropped (lowest index among ties)
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1, n_sera = 4L)
+  expect_equal(b$dropped_sera, "SR1")
+  # titre_reduced should contain SR2..SR5
+  expect_equal(colnames(b$titre_reduced), paste0("SR", 2:5))
+})
+
+test_that("banded: dropped sera become all-'*' in rm_titre", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1, n_sera = 4L)
+  for (sr in b$dropped_sera) {
+    expect_true(all(b$rm_titre[, sr] == "*"))
+  }
+})
+
+test_that("banded: rm_ind accounts for both banding and serum dropping", {
+  f     <- make_fixture()
+  b_no  <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1)
+  b_yes <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 1, n_sera = 4L)
+  # Dropping a serum adds more missing cells → rm_ind should be longer
+  expect_gt(length(b_yes$rm_ind), length(b_no$rm_ind))
+})
+
+test_that("banded: rm_ind_arr reflects all stars in rm_titre", {
+  f <- make_fixture()
+  b <- miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2, n_sera = 3L)
+  expect_equal(nrow(b$rm_ind_arr), sum(as.vector(b$rm_titre) == "*"))
+})
+
+test_that("banded: error on invalid bandwidth", {
+  f <- make_fixture()
+  expect_error(miss_titres_banded(f$ti$lessthan_titre, bandwidth = -1))
+  expect_error(miss_titres_banded(f$ti$lessthan_titre, bandwidth = "a"))
+  expect_error(miss_titres_banded(f$ti$lessthan_titre, bandwidth = c(1, 2)))
+})
+
+test_that("banded: error when n_sera exceeds ncol", {
+  f <- make_fixture()
+  expect_error(
+    miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2,
+                       n_sera = ncol(f$ti$lessthan_titre) + 1L)
+  )
+})
+
+test_that("banded: error when n_sera < 1", {
+  f <- make_fixture()
+  expect_error(miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2, n_sera = 0L))
+})
