@@ -41,6 +41,135 @@
 }
 
 
+# ── Constraint helpers ────────────────────────────────────────────────────────
+
+#' Minimum non-missing titres to count-constrain a d-dimensional map
+#'
+#' Each titre measurement constrains one pairwise distance.  A map with
+#' \code{n_ag} antigens and \code{n_sr} sera in \code{d} dimensions has
+#' \eqn{(n_\text{ag} + n_\text{sr}) d} position coordinates, but the solution
+#' is invariant to \eqn{d(d+1)/2} rigid-body motions (translations +
+#' rotations), leaving \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2}
+#' effective free parameters.
+#'
+#' @param n_ag,n_sr Number of antigens and sera.
+#' @param d Dimensionality.
+#' @return Integer scalar.
+#' @noRd
+.min_obs_for_dim <- function(n_ag, n_sr, d) {
+  (n_ag + n_sr) * d - d * (d + 1L) / 2L
+}
+
+#' Check whether the antigen-serum bipartite observation graph is connected
+#'
+#' The map is unidentifiable if any antigen or serum has no observations (its
+#' position is unconstrained), or if the graph has more than one connected
+#' component (different components can float independently).
+#'
+#' @param titre A titre matrix; cells equal to \code{"*"} are treated as absent.
+#' @return Logical scalar: \code{TRUE} if connected.
+#' @noRd
+.is_bipartite_connected <- function(titre) {
+  obs  <- titre != "*"
+  n_ag <- nrow(obs)
+  n_sr <- ncol(obs)
+  if ((n_ag + n_sr) == 0L) return(TRUE)
+  if (any(rowSums(obs) == 0L) || any(colSums(obs) == 0L)) return(FALSE)
+  # BFS: antigens are nodes 1..n_ag, sera are (n_ag+1)..(n_ag+n_sr)
+  visited    <- logical(n_ag + n_sr)
+  visited[1L] <- TRUE
+  queue      <- 1L
+  while (length(queue) > 0L) {
+    node  <- queue[1L]; queue <- queue[-1L]
+    nbrs  <- if (node <= n_ag) which(obs[node, ]) + n_ag else which(obs[, node - n_ag])
+    fresh <- nbrs[!visited[nbrs]]
+    visited[nbrs] <- TRUE
+    queue <- c(queue, fresh)
+  }
+  all(visited)
+}
+
+#' Issue warnings if a titre matrix appears underconstrained
+#'
+#' Checks two conditions: (1) whether the count of non-missing titres is below
+#' the minimum needed to count-constrain a \code{d}-dimensional map; and (2)
+#' whether the antigen-serum observation graph is disconnected.
+#'
+#' @param rm_titre The output titre matrix.
+#' @param d Dimensionality to test against.  Default \code{2L}.
+#' @return Invisibly \code{NULL}.
+#' @noRd
+.warn_if_underconstrained <- function(rm_titre, d = 2L) {
+  n_ag    <- nrow(rm_titre)
+  n_sr    <- ncol(rm_titre)
+  n_obs   <- sum(rm_titre != "*")
+  min_obs <- .min_obs_for_dim(n_ag, n_sr, d)
+
+  if (n_obs < min_obs) {
+    warning(sprintf(
+      paste0("Output has %d non-missing titres; a %d-dimensional map with ",
+             "%d antigens and %d sera needs at least %d. ",
+             "The map may be underconstrained."),
+      n_obs, d, n_ag, n_sr, min_obs
+    ), call. = FALSE)
+  }
+
+  if (!.is_bipartite_connected(rm_titre)) {
+    warning(
+      paste0("The antigen-serum observation graph is disconnected: at least ",
+             "one antigen or serum has no titres linking it to the rest of ",
+             "the table. Its position in the map will be unidentifiable."),
+      call. = FALSE
+    )
+  }
+
+  invisible(NULL)
+}
+
+#' Cap a removal set to avoid underconstrained output
+#'
+#' When \code{length(rm_ind) > max_removable}, the set is truncated to
+#' \code{max_removable} (first entries by linear index) and a warning is
+#' issued.  When the input is already underconstrained, an empty vector is
+#' returned with a warning.
+#'
+#' @param rm_ind Integer vector of proposed linear removal indices.
+#' @param titre The input titre matrix (before any removals).
+#' @param min_dim Target dimensionality.
+#' @return Possibly-truncated integer vector.
+#' @noRd
+.apply_min_dim_cap <- function(rm_ind, titre, min_dim) {
+  n_ag      <- nrow(titre)
+  n_sr      <- ncol(titre)
+  input_obs <- sum(titre != "*")
+  min_obs   <- .min_obs_for_dim(n_ag, n_sr, min_dim)
+  max_rm    <- input_obs - min_obs
+
+  if (max_rm < 0L) {
+    warning(sprintf(
+      paste0("Input has only %d non-missing titres, below the minimum of %d ",
+             "needed to constrain a %d-dimensional map (%d antigens, %d sera). ",
+             "Cannot enforce min_dim = %d; no titres removed."),
+      input_obs, min_obs, min_dim, n_ag, n_sr, min_dim
+    ), call. = FALSE)
+    return(integer(0L))
+  }
+
+  if (length(rm_ind) > max_rm) {
+    warning(sprintf(
+      paste0("Removing %d titres would leave %d observations, below the ",
+             "minimum of %d needed for a %d-dimensional map (%d antigens, ",
+             "%d sera). Capping removal at %d titres."),
+      length(rm_ind), input_obs - length(rm_ind),
+      min_obs, min_dim, n_ag, n_sr, max_rm
+    ), call. = FALSE)
+    rm_ind <- rm_ind[seq_len(max_rm)]
+  }
+
+  rm_ind
+}
+
+
 # ── Exported functions ────────────────────────────────────────────────────────
 
 #' Remove titres below a detection threshold
@@ -61,6 +190,12 @@
 #'   for a standard HI assay floor of 1:10).
 #' @param keep_homologous Whether to retain homologous titres even when they
 #'   fall below \code{threshold}. Default \code{TRUE}.
+#' @param min_dim Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+#'   (default).  When \code{NULL} a warning is issued if the result appears
+#'   underconstrained for a 2-dimensional map.  When set, removal is capped so
+#'   that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+#'   remain, and a warning is issued if capping was needed or if the input is
+#'   already underconstrained.
 #'
 #' @return A list with elements:
 #' \describe{
@@ -80,7 +215,8 @@
 #' miss_titres_threshold(ti$round_titre, threshold = 20)
 #' # Apply to character lessthan_titre
 #' miss_titres_threshold(ti$lessthan_titre, threshold = 20)
-miss_titres_threshold <- function(titre, threshold, keep_homologous = TRUE) {
+miss_titres_threshold <- function(titre, threshold, keep_homologous = TRUE,
+                                   min_dim = NULL) {
 
   tv <- as.vector(titre)
 
@@ -104,15 +240,20 @@ miss_titres_threshold <- function(titre, threshold, keep_homologous = TRUE) {
     rm_ind <- setdiff(rm_ind, .homologous_ind(titre))
   }
 
+  if (!is.null(min_dim)) rm_ind <- .apply_min_dim_cap(rm_ind, titre, as.integer(min_dim))
+
   rm_titre        <- titre
   rm_titre[rm_ind] <- "*"
+
+  .warn_if_underconstrained(rm_titre, d = if (!is.null(min_dim)) as.integer(min_dim) else 2L)
 
   list(
     full_titre  = titre,
     rm_titre    = rm_titre,
     rm_ind      = rm_ind,
     rm_ind_arr  = which(rm_titre == "*", arr.ind = TRUE),
-    params      = list(threshold = threshold, keep_homologous = keep_homologous)
+    params      = list(threshold = threshold, keep_homologous = keep_homologous,
+                       min_dim = min_dim)
   )
 }
 
@@ -143,6 +284,12 @@ miss_titres_threshold <- function(titre, threshold, keep_homologous = TRUE) {
 #' @param keep_homologous Whether to protect homologous titres from removal.
 #'   Default \code{TRUE}.
 #' @param seed Random seed for reproducibility.
+#' @param min_dim Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+#'   (default).  When \code{NULL} a warning is issued if the result appears
+#'   underconstrained for a 2-dimensional map.  When set, removal is capped so
+#'   that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+#'   remain, and a warning is issued if capping was needed or if the input is
+#'   already underconstrained.
 #'
 #' @return A list with the same structure as \code{\link{miss_titres_random}}:
 #'   \code{full_titre}, \code{rm_titre}, \code{rm_ind}, \code{rm_ind_arr},
@@ -154,7 +301,7 @@ miss_titres_threshold <- function(titre, threshold, keep_homologous = TRUE) {
 #' ti <- dist_to_hi_titre(m$dist)
 #' miss_titres_informed(ti$lessthan_titre, midpoint_titre = 40, steepness = 2, seed = 42)
 miss_titres_informed <- function(titre, midpoint_titre = 40, steepness = 1,
-                                  keep_homologous = TRUE, seed) {
+                                  keep_homologous = TRUE, seed, min_dim = NULL) {
   if (missing(seed)) seed <- sample(1:1e6, 1)
   set.seed(seed)
 
@@ -179,8 +326,12 @@ miss_titres_informed <- function(titre, midpoint_titre = 40, steepness = 1,
   drawn  <- stats::rbinom(length(candidate_ind), size = 1L, prob = p_miss[candidate_ind])
   rm_ind <- candidate_ind[drawn == 1L]
 
+  if (!is.null(min_dim)) rm_ind <- .apply_min_dim_cap(rm_ind, titre, as.integer(min_dim))
+
   rm_titre        <- titre
   rm_titre[rm_ind] <- "*"
+
+  .warn_if_underconstrained(rm_titre, d = if (!is.null(min_dim)) as.integer(min_dim) else 2L)
 
   list(
     full_titre  = titre,
@@ -188,7 +339,7 @@ miss_titres_informed <- function(titre, midpoint_titre = 40, steepness = 1,
     rm_ind      = rm_ind,
     rm_ind_arr  = which(rm_titre == "*", arr.ind = TRUE),
     params      = list(midpoint_titre = midpoint_titre, steepness = steepness,
-                       keep_homologous = keep_homologous, seed = seed)
+                       keep_homologous = keep_homologous, seed = seed, min_dim = min_dim)
   )
 }
 
@@ -214,6 +365,12 @@ miss_titres_informed <- function(titre, midpoint_titre = 40, steepness = 1,
 #'   indices.
 #' @param keep_homologous Whether to protect homologous titres within the block
 #'   from removal.  Default \code{TRUE}.
+#' @param min_dim Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+#'   (default).  When \code{NULL} a warning is issued if the result appears
+#'   underconstrained for a 2-dimensional map.  When set, removal is capped so
+#'   that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+#'   remain, and a warning is issued if capping was needed or if the input is
+#'   already underconstrained.
 #'
 #' @return A list with the same structure as \code{\link{miss_titres_random}}:
 #'   \code{full_titre}, \code{rm_titre}, \code{rm_ind}, \code{rm_ind_arr},
@@ -227,7 +384,8 @@ miss_titres_informed <- function(titre, midpoint_titre = 40, steepness = 1,
 #' miss_titres_block(ti$lessthan_titre, antigens = 1:2, sera = 1:3)
 #' # Or specify by name
 #' miss_titres_block(ti$lessthan_titre, antigens = c("AG1","AG3"), sera = c("SR2","SR4"))
-miss_titres_block <- function(titre, antigens, sera, keep_homologous = TRUE) {
+miss_titres_block <- function(titre, antigens, sera, keep_homologous = TRUE,
+                               min_dim = NULL) {
 
   n_ag <- nrow(titre)
   n_sr <- ncol(titre)
@@ -267,15 +425,20 @@ miss_titres_block <- function(titre, antigens, sera, keep_homologous = TRUE) {
     rm_ind <- setdiff(rm_ind, .homologous_ind(titre))
   }
 
+  if (!is.null(min_dim)) rm_ind <- .apply_min_dim_cap(rm_ind, titre, as.integer(min_dim))
+
   rm_titre        <- titre
   rm_titre[rm_ind] <- "*"
+
+  .warn_if_underconstrained(rm_titre, d = if (!is.null(min_dim)) as.integer(min_dim) else 2L)
 
   list(
     full_titre  = titre,
     rm_titre    = rm_titre,
     rm_ind      = rm_ind,
     rm_ind_arr  = which(rm_titre == "*", arr.ind = TRUE),
-    params      = list(antigens = antigens, sera = sera, keep_homologous = keep_homologous)
+    params      = list(antigens = antigens, sera = sera, keep_homologous = keep_homologous,
+                       min_dim = min_dim)
   )
 }
 
@@ -312,6 +475,12 @@ miss_titres_block <- function(titre, antigens, sera, keep_homologous = TRUE) {
 #' @param keep_homologous Whether to protect homologous titres from removal.
 #'   Default \code{TRUE}.
 #' @param seed Random seed for reproducibility.
+#' @param min_dim Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+#'   (default).  When \code{NULL} a warning is issued if the result appears
+#'   underconstrained for a 2-dimensional map.  When set, removal is capped so
+#'   that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+#'   remain, and a warning is issued if capping was needed or if the input is
+#'   already underconstrained.
 #'
 #' @return A list with the same structure as \code{\link{miss_titres_random}}:
 #'   \code{full_titre}, \code{rm_titre}, \code{rm_ind}, \code{rm_ind_arr},
@@ -333,7 +502,8 @@ miss_titres_block <- function(titre, antigens, sera, keep_homologous = TRUE) {
 #' )
 miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
                                      midpoint_dist = 3, steepness = 1,
-                                     keep_homologous = TRUE, seed) {
+                                     keep_homologous = TRUE, seed,
+                                     min_dim = NULL) {
   if (missing(seed)) seed <- sample(1:1e6, 1)
   set.seed(seed)
 
@@ -384,8 +554,12 @@ miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
                           prob = as.vector(p_miss)[candidate_ind])
   rm_ind <- candidate_ind[drawn == 1L]
 
+  if (!is.null(min_dim)) rm_ind <- .apply_min_dim_cap(rm_ind, titre, as.integer(min_dim))
+
   rm_titre        <- titre
   rm_titre[rm_ind] <- "*"
+
+  .warn_if_underconstrained(rm_titre, d = if (!is.null(min_dim)) as.integer(min_dim) else 2L)
 
   list(
     full_titre   = titre,
@@ -394,7 +568,7 @@ miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
     rm_ind_arr   = which(rm_titre == "*", arr.ind = TRUE),
     dist_matrix  = dist_matrix,
     params       = list(midpoint_dist = midpoint_dist, steepness = steepness,
-                        keep_homologous = keep_homologous, seed = seed)
+                        keep_homologous = keep_homologous, seed = seed, min_dim = min_dim)
   )
 }
 
@@ -423,6 +597,14 @@ miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
 #' @param keep_homologous Whether to protect homologous (diagonal) titre pairs
 #'   from banding.  Default \code{TRUE}; only relevant when
 #'   \code{bandwidth = 0}.
+#' @param min_dim Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+#'   (default).  When \code{NULL} a warning is issued if the result appears
+#'   underconstrained for a 2-dimensional map.  When set, the banding removal
+#'   is capped so that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2}
+#'   observations remain; note that serum dropping (if \code{n_sera} is set)
+#'   is applied after capping and may further reduce observations.  A warning
+#'   is issued if capping was needed, if the input is already underconstrained,
+#'   or if the final output is underconstrained.
 #'
 #' @return A list:
 #' \describe{
@@ -451,7 +633,7 @@ miss_titres_by_distance <- function(titre, ag_coord, sr_coord,
 #' # Same, then reduce to 5 sera
 #' miss_titres_banded(ti$lessthan_titre, bandwidth = 2, n_sera = 5)
 miss_titres_banded <- function(titre, bandwidth, n_sera = NULL,
-                               keep_homologous = TRUE) {
+                               keep_homologous = TRUE, min_dim = NULL) {
 
   n_ag <- nrow(titre)
   n_sr <- ncol(titre)
@@ -484,6 +666,8 @@ miss_titres_banded <- function(titre, bandwidth, n_sera = NULL,
     band_cand <- setdiff(band_cand, .homologous_ind(titre))
   }
 
+  if (!is.null(min_dim)) band_cand <- .apply_min_dim_cap(band_cand, titre, as.integer(min_dim))
+
   rm_titre          <- titre
   rm_titre[band_cand] <- "*"
 
@@ -508,6 +692,8 @@ miss_titres_banded <- function(titre, bandwidth, n_sera = NULL,
   keep_cols     <- setdiff(seq_len(n_sr), match(dropped_sera, colnames(rm_titre)))
   titre_reduced <- rm_titre[, keep_cols, drop = FALSE]
 
+  .warn_if_underconstrained(rm_titre, d = if (!is.null(min_dim)) as.integer(min_dim) else 2L)
+
   list(
     full_titre    = titre,
     rm_titre      = rm_titre,
@@ -517,6 +703,7 @@ miss_titres_banded <- function(titre, bandwidth, n_sera = NULL,
     rm_ind_arr    = which(rm_titre == "*", arr.ind = TRUE),
     params        = list(bandwidth       = bandwidth,
                          n_sera          = n_sera,
-                         keep_homologous = keep_homologous)
+                         keep_homologous = keep_homologous,
+                         min_dim         = min_dim)
   )
 }

@@ -11,7 +11,8 @@ miss_titres_by_distance(
   midpoint_dist = 3,
   steepness = 1,
   keep_homologous = TRUE,
-  seed
+  seed,
+  min_dim = NULL
 )
 }
 \arguments{
@@ -39,6 +40,13 @@ Default \code{3}.}
 Default \code{TRUE}.}
 
 \item{seed}{Random seed for reproducibility.}
+
+\item{min_dim}{Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+(default).  When \code{NULL} a warning is issued if the result appears
+underconstrained for a 2-dimensional map.  When set, removal is capped so
+that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+remain, and a warning is issued if capping was needed or if the input is
+already underconstrained.}
 }
 \value{
 A list with the same structure as \code{\link{miss_titres_random}}:
