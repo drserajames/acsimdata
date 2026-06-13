@@ -10,7 +10,7 @@ sim_cluster_surv(
   true_ag_coord,
   range,
   n_ref_per_block,
-  ref_step = 2L,
+  ref_step = 1L,
   coincident = NULL,
   dimensions = 2L,
   rdistribution = stats::runif,
@@ -43,8 +43,10 @@ the total antigen count.}
 window width).}
 
 \item{ref_step}{Number of reference pairs added / dropped per block.
-Default 2.  Together with \code{n_ref_per_block} and \code{n_blocks}
-this determines the total number of reference pairs:
+Default 1.  Must satisfy \code{ref_step <= n_ref_per_block}; larger
+values would leave gaps in the reference panel where some pairs are never
+active in any block.  Together with \code{n_ref_per_block} and
+\code{n_blocks} this determines the total number of reference pairs:
 \code{n_ref_per_block + (n_blocks - 1) * ref_step}.}
 
 \item{coincident}{Controls which antigen positions are reused as reference
@@ -143,7 +145,7 @@ distances (equivalent to the log-titre scale), consistent with
 }
 \examples{
 # Three clusters in an equilateral triangle (side 3, scatter range 0.25).
-# n_ref_per_block = 2, n_blocks = 2, ref_step = 1
+# n_ref_per_block = 2, n_blocks = 2, ref_step = 1 (default)
 # => n_ref_pairs = 2 + (2-1)*1 = 3; n_antigens = 3 + 2*6 = 15
 # Reference antigen rows first (one per cluster), test antigens after.
 
@@ -157,7 +159,6 @@ result <- sim_cluster_surv(
   true_ag_coord       = true_ag,
   range               = 0.25,
   n_ref_per_block     = 2L,
-  ref_step            = 1L,
   seed                = 1
 )
 dim(result$titre_tables$hiA_agA)  # 15 x 3

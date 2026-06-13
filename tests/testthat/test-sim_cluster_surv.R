@@ -151,6 +151,18 @@ test_that("noise components have correct dimensions", {
   expect_equal(length(small$noise$serum_noise), 3L)
 })
 
+# --- Input validation ---
+
+test_that("error when ref_step > n_ref_per_block", {
+  expect_error(
+    sim_cluster_surv(
+      n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+      range = 0.25, n_ref_per_block = 2L, ref_step = 3L, seed = 1
+    ),
+    "ref_step"
+  )
+})
+
 # --- Integration: example from @examples ---
 
 test_that("example in documentation runs and gives 15 x 3 tables", {
@@ -160,7 +172,6 @@ test_that("example in documentation runs and gives 15 x 3 tables", {
     true_ag_coord       = true_ag,
     range               = 0.25,
     n_ref_per_block     = 2L,
-    ref_step            = 1L,
     seed                = 1
   )
   expect_equal(dim(r$titre_tables$hiA_agA), c(15L, 3L))
@@ -180,6 +191,7 @@ test_that("works with 3-cluster full-scale structure (1884 x 48)", {
     true_ag_coord       = true_ag_large,
     range               = 0.25,
     n_ref_per_block     = 14L,
+    ref_step            = 2L,
     seed                = 1
   )
   expect_equal(dim(r$titre_tables$hiA_agA), c(1884L, 48L))

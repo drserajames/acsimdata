@@ -43,8 +43,10 @@
 #' @param n_ref_per_block Number of active reference pairs per block (rolling
 #'   window width).
 #' @param ref_step Number of reference pairs added / dropped per block.
-#'   Default 2.  Together with \code{n_ref_per_block} and \code{n_blocks}
-#'   this determines the total number of reference pairs:
+#'   Default 1.  Must satisfy \code{ref_step <= n_ref_per_block}; larger
+#'   values would leave gaps in the reference panel where some pairs are never
+#'   active in any block.  Together with \code{n_ref_per_block} and
+#'   \code{n_blocks} this determines the total number of reference pairs:
 #'   \code{n_ref_per_block + (n_blocks - 1) * ref_step}.
 #' @param coincident Controls which antigen positions are reused as reference
 #'   sera.  Defaults to \code{seq_len(n_ref_pairs)} (first \code{n_ref_pairs}
@@ -96,7 +98,7 @@
 #'
 #' @examples
 #' # Three clusters in an equilateral triangle (side 3, scatter range 0.25).
-#' # n_ref_per_block = 2, n_blocks = 2, ref_step = 1
+#' # n_ref_per_block = 2, n_blocks = 2, ref_step = 1 (default)
 #' # => n_ref_pairs = 2 + (2-1)*1 = 3; n_antigens = 3 + 2*6 = 15
 #' # Reference antigen rows first (one per cluster), test antigens after.
 #'
@@ -110,7 +112,6 @@
 #'   true_ag_coord       = true_ag,
 #'   range               = 0.25,
 #'   n_ref_per_block     = 2L,
-#'   ref_step            = 1L,
 #'   seed                = 1
 #' )
 #' dim(result$titre_tables$hiA_agA)  # 15 x 3
@@ -121,7 +122,7 @@ sim_cluster_surv <- function(
   true_ag_coord,
   range,
   n_ref_per_block,
-  ref_step        = 2L,
+  ref_step        = 1L,
   coincident      = NULL,
   dimensions      = 2L,
   rdistribution   = stats::runif,
@@ -137,6 +138,13 @@ sim_cluster_surv <- function(
   seed
 ) {
   if (missing(seed)) seed <- sample(1:1e6, 1)
+
+  if (ref_step > n_ref_per_block) {
+    stop(sprintf(
+      "ref_step (%d) must be <= n_ref_per_block (%d); larger values create reference pairs that are never active in any block",
+      ref_step, n_ref_per_block
+    ))
+  }
 
   n_ref_pairs <- as.integer(n_ref_per_block) + (as.integer(n_blocks) - 1L) * as.integer(ref_step)
   n_antigens  <- n_ref_pairs + as.integer(n_blocks) * as.integer(n_test_ag_per_block)
