@@ -4,55 +4,53 @@
 #' tables using a rolling reference panel structure and a 2 x 2 factorial
 #' noise design.
 #'
-#' \strong{Inputs.}  The caller is responsible for generating \code{slim_dist}
-#' (e.g. via \code{\link{map_maker_coord}} or \code{\link{map_maker_random}})
-#' and choosing \code{sera_idx}.  This separates coordinate generation from
-#' surveillance structure, so any distance matrix can be used.
+#' \strong{Distance matrix layout.}  By convention, place the reference
+#' antigen rows first in \code{slim_dist} (rows 1 to \code{ncol(slim_dist)}),
+#' followed by test antigen rows.  If you do this, \code{sera_idx} can be left
+#' at its default.  Use \code{\link{map_maker_coord}} with
+#' \code{coincident = seq_len(n_ref_pairs)} to generate coordinates with this
+#' layout automatically.
 #'
-#' \strong{Reference panel.}  \code{sera_idx[k]} gives the row index of the
-#' antigen that is homologous to serum column \code{k}.  These reference
-#' antigens are measured against all reference sera that share at least one
-#' active window with them.
+#' \strong{Rolling reference window.}  Block \code{b} has active reference
+#' pair indices
+#' \code{(1 + (b-1)*ref_step) : min(n_ref, 1 + (b-1)*ref_step + n_ref_per_block - 1)}.
+#' Reference pairs near the end of the sequence may fall in fewer blocks if
+#' \code{n_ref} < \code{n_ref_per_block + (n_blocks - 1) * ref_step}.
 #'
-#' \strong{Test antigens.}  Rows of \code{slim_dist} not in \code{sera_idx}
-#' are test antigens.  They are assigned to blocks sequentially in row order
-#' (block 1 gets the first \code{n_test_ag_per_block} test AG rows, block 2
-#' gets the next batch, and so on).  Pass a custom \code{block_assignments}
-#' list to override this.
+#' \strong{Reference antigens.}  Each reference antigen is measured against
+#' all reference sera that share at least one active window with it.
 #'
-#' \strong{Rolling window.}  Block \code{b} has active reference pair indices
-#' \code{(1 + (b-1)*ref_step) : min(n_sr, 1 + (b-1)*ref_step + ref_window - 1)}.
-#' Reference pairs near the end of the sequence may appear in fewer blocks.
+#' \strong{Test antigens.}  Assigned to blocks sequentially in row order:
+#' block 1 gets the first \code{n_test_ag_per_block} test-AG rows, block 2
+#' the next batch, and so on.
 #'
 #' \strong{Factorial noise.}  A single shared serum noise draw (uniform) plus
 #' two HI noise realisations (hi_A, hi_B) crossed with two antigen noise
 #' realisations (ag_A, ag_B), each pre-scaled by \code{noise_scale}, yields
-#' four noisy distance tables that are converted to HI titres.
+#' four noisy distance tables that are converted to HI titres.  Noise is added
+#' to distances (equivalent to the log-titre scale), consistent with
+#' \code{\link{add_noise}}.
 #'
-#' @param slim_dist Numeric matrix of true antigen-serum distances
-#'   (n_ag x n_sr) with rownames matching \code{"AG..."} and colnames matching
-#'   \code{"SR..."} (as produced by \code{map_maker_coord} or
-#'   \code{map_maker_random}).
-#' @param sera_idx Integer vector of length \code{ncol(slim_dist)}: row index
-#'   of the antigen homologous to each serum column.  \code{sera_idx[k]} is
-#'   the reference antigen for serum \code{k}.
+#' @param slim_dist Numeric matrix of true antigen-serum distances (n_ag x
+#'   n_ref) with rownames matching \code{"AG..."} and colnames matching
+#'   \code{"SR..."}, as produced by \code{\link{map_maker_coord}} or
+#'   \code{\link{map_maker_random}}.
 #' @param n_blocks Number of surveillance blocks.
-#' @param n_test_ag_per_block Number of test antigens per block.  Defaults to
-#'   \code{floor(n_test_ag / n_blocks)} where \code{n_test_ag} is the number
-#'   of rows in \code{slim_dist} not in \code{sera_idx}.  An error is raised
-#'   if the default does not divide evenly.
-#' @param block_assignments Optional list of length \code{n_blocks}: each
-#'   element is an integer vector of test-AG row indices (rows of
-#'   \code{slim_dist}) for that block.  Overrides the sequential default.
-#' @param ref_window Number of active reference pairs per block. Default 12.
+#' @param n_ref_per_block Number of active reference pairs per block (the
+#'   rolling window width).
+#' @param n_test_ag_per_block Number of test antigens per block.
 #' @param ref_step Number of reference pairs added / dropped per block.
 #'   Default 2.
+#' @param sera_idx Integer vector of length \code{ncol(slim_dist)}: row index
+#'   of the antigen homologous to each serum column.  Defaults to
+#'   \code{seq_len(ncol(slim_dist))}, assuming reference antigens occupy the
+#'   first \code{ncol(slim_dist)} rows of \code{slim_dist}.
 #' @param hi_noise_sd Standard deviation of per-titre (HI) noise before
 #'   scaling. Default 1.
 #' @param ag_noise_sd Standard deviation of per-antigen noise before scaling.
 #'   Default 1.
-#' @param noise_scale Scaling factor applied to both noise components.
-#'   Default 0.5.
+#' @param noise_scale Scaling factor applied to both HI and antigen noise
+#'   components. Default 0.5.
 #' @param serum_noise_min Lower bound of the shared uniform serum noise.
 #'   Default 0.
 #' @param serum_noise_max Upper bound of the shared uniform serum noise.
@@ -66,59 +64,58 @@
 #' @return A list with:
 #' \describe{
 #'   \item{titre_tables}{Named list of four character matrices (hiA_agA,
-#'     hiA_agB, hiB_agA, hiB_agB), each n_ag x n_sr, with \code{"*"} for
+#'     hiA_agB, hiB_agA, hiB_agB), each n_ag x n_ref, with \code{"*"} for
 #'     unmeasured cells.}
 #'   \item{full_titre_tables}{Same four tables without the missing-data mask.}
 #'   \item{true_titre_table}{Character matrix from true (noiseless) distances,
 #'     no missing-data mask.}
 #'   \item{slim_dist}{The input distance matrix (unchanged).}
 #'   \item{block_active}{List of length n_blocks: active reference pair indices
-#'     (1-based within 1:n_sr) for each block.}
-#'   \item{block_test_ag_rows}{List of length n_blocks: row indices of the test
+#'     (1-based) for each block.}
+#'   \item{block_test_ag_rows}{List of length n_blocks: row indices of test
 #'     antigens for each block.}
-#'   \item{noise}{List: hi_A and hi_B (n_ag x n_sr matrices), ag_A and ag_B
-#'     (length-n_ag vectors, already scaled), serum_noise (length-n_sr
+#'   \item{noise}{List: hi_A and hi_B (n_ag x n_ref matrices), ag_A and ag_B
+#'     (length-n_ag vectors, already scaled), serum_noise (length-n_ref
 #'     vector).}
 #'   \item{params}{List of all resolved input parameters.}
 #' }
 #' @export
 #'
 #' @examples
-#' # Three clusters arranged in an equilateral triangle (side 3).
-#' # Each cluster has 1 reference pair + 4 test antigens = 5 antigens.
-#' # Total: 15 antigens, 3 reference sera, 2 surveillance blocks.
+#' # Three clusters in an equilateral triangle (side 3, scatter range 0.25).
+#' # Reference antigens occupy rows 1-3 (one per cluster); test antigens
+#' # follow in rows 4-15 (four per cluster, two per block).
 #'
 #' centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
-#' true_ag <- centres[rep(1:3, each = 5), ]   # 15 antigens, 5 per cluster
-#'
-#' # Antigen 1 (cluster A), 6 (cluster B), 11 (cluster C) are reference pairs
-#' sera_idx <- c(1L, 6L, 11L)
+#' true_ag  <- rbind(centres,                        # rows 1-3: reference AGs
+#'                   centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 #'
 #' m <- map_maker_coord(15L, 3L, true_ag, range = 0.25,
-#'                      coincident = sera_idx, seed = 1)
+#'                      coincident = 1:3, seed = 1)
 #'
-#' # 2 blocks, 6 test antigens per block (2 per cluster), rolling window of 2
-#' result <- sim_cluster_surv(m$slim_dist, sera_idx, n_blocks = 2L,
-#'                            ref_window = 2L, seed = 1)
-#' dim(result$titre_tables$hiA_agA)   # 15 x 3
-#' result$titre_tables$hiA_agA        # "*" shows unmeasured cells
+#' result <- sim_cluster_surv(m$slim_dist,
+#'                            n_blocks           = 2L,
+#'                            n_ref_per_block    = 2L,
+#'                            n_test_ag_per_block = 6L,
+#'                            seed               = 1)
+#' dim(result$titre_tables$hiA_agA)  # 15 x 3
+#' result$titre_tables$hiA_agA       # "*" marks unmeasured cells
 sim_cluster_surv <- function(
   slim_dist,
-  sera_idx,
   n_blocks,
-  n_test_ag_per_block = NULL,
-  block_assignments   = NULL,
-  ref_window          = 12L,
-  ref_step            = 2L,
-  hi_noise_sd         = 1,
-  ag_noise_sd         = 1,
-  noise_scale         = 0.5,
-  serum_noise_min     = 0,
-  serum_noise_max     = 1,
-  base                = 2,
-  divisor             = 10,
-  max_log_titre       = 9,
-  min_log_titre       = 0,
+  n_ref_per_block,
+  n_test_ag_per_block,
+  ref_step        = 2L,
+  sera_idx        = seq_len(ncol(slim_dist)),
+  hi_noise_sd     = 1,
+  ag_noise_sd     = 1,
+  noise_scale     = 0.5,
+  serum_noise_min = 0,
+  serum_noise_max = 1,
+  base            = 2,
+  divisor         = 10,
+  max_log_titre   = 9,
+  min_log_titre   = 0,
   seed
 ) {
   n_ag <- nrow(slim_dist)
@@ -136,39 +133,31 @@ sim_cluster_surv <- function(
     stop("all sera_idx values must be in 1:nrow(slim_dist)")
   }
 
-  if (missing(seed)) seed <- sample(1:1e6, 1)
-
-  # --- Block assignments for test antigens ---
   test_ag_rows <- sort(setdiff(seq_len(n_ag), sera_idx))
   n_test_ag    <- length(test_ag_rows)
-
-  if (!is.null(block_assignments)) {
-    if (length(block_assignments) != n_blocks) {
-      stop("block_assignments must be a list of length n_blocks")
-    }
-    block_test_ag_rows <- block_assignments
-  } else {
-    if (is.null(n_test_ag_per_block)) {
-      if (n_test_ag %% n_blocks != 0L) {
-        stop(sprintf(
-          "n_test_ag (%d) is not divisible by n_blocks (%d); supply n_test_ag_per_block or block_assignments explicitly",
-          n_test_ag, n_blocks
-        ))
-      }
-      n_test_ag_per_block <- n_test_ag %/% n_blocks
-    }
-    block_test_ag_rows <- lapply(seq_len(n_blocks), function(b) {
-      idx <- seq.int((b - 1L) * n_test_ag_per_block + 1L,
-                     b * n_test_ag_per_block)
-      test_ag_rows[idx]
-    })
+  expected_test <- as.integer(n_blocks) * as.integer(n_test_ag_per_block)
+  if (n_test_ag != expected_test) {
+    stop(sprintf(
+      "n_blocks (%d) * n_test_ag_per_block (%d) = %d but slim_dist has %d test antigen rows",
+      n_blocks, n_test_ag_per_block, expected_test, n_test_ag
+    ))
   }
+
+  if (missing(seed)) seed <- sample(1:1e6, 1)
 
   # --- Rolling reference window ---
   block_active <- lapply(seq_len(n_blocks), function(b) {
     start <- 1L + (b - 1L) * as.integer(ref_step)
-    end   <- min(n_sr, start + as.integer(ref_window) - 1L)
+    end   <- min(n_sr, start + as.integer(n_ref_per_block) - 1L)
     seq.int(start, end)
+  })
+
+  # --- Test antigen block assignment (sequential) ---
+  n_test_ag_per_block <- as.integer(n_test_ag_per_block)
+  block_test_ag_rows <- lapply(seq_len(n_blocks), function(b) {
+    idx <- seq.int((b - 1L) * n_test_ag_per_block + 1L,
+                   b * n_test_ag_per_block)
+    test_ag_rows[idx]
   })
 
   # --- Reference AG serum coverage ---
@@ -193,7 +182,6 @@ sim_cluster_surv <- function(
   ag_A      <- matrix(ag_A_vals, nrow = n_ag, ncol = n_sr)
   ag_B      <- matrix(ag_B_vals, nrow = n_ag, ncol = n_sr)
 
-  # Factorial noisy distance tables (inherit dimnames from slim_dist)
   make_noisy_dist <- function(hi, ag) slim_dist + sr_noise_mat + hi + ag
   noisy_dists <- list(
     hiA_agA = make_noisy_dist(hi_A, ag_A),
@@ -250,8 +238,8 @@ sim_cluster_surv <- function(
     params = list(
       sera_idx            = sera_idx,
       n_blocks            = n_blocks,
+      n_ref_per_block     = n_ref_per_block,
       n_test_ag_per_block = n_test_ag_per_block,
-      ref_window          = ref_window,
       ref_step            = ref_step,
       hi_noise_sd         = hi_noise_sd,
       ag_noise_sd         = ag_noise_sd,
