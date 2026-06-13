@@ -28,18 +28,18 @@
 #' distances (equivalent to the log-titre scale), consistent with
 #' \code{\link{add_noise}}.
 #'
-#' @param n_antigens Total number of antigen points.
 #' @param n_ref_pairs Number of reference antigen-serum pairs (= number of
 #'   sera).
-#' @param true_ag_coord Matrix of cluster centre coordinates, one row per
-#'   antigen (or one row per cluster, recycled to \code{n_antigens} rows by
-#'   \code{\link{map_maker_coord}}).
+#' @param n_blocks Number of surveillance blocks.
+#' @param n_test_ag_per_block Number of test antigens per block.
+#' @param true_ag_coord Matrix of cluster centre coordinates.  Must have either
+#'   one row per antigen (\code{n_ref_pairs + n_blocks * n_test_ag_per_block}
+#'   rows) or fewer rows that \code{\link{map_maker_coord}} will recycle to
+#'   the total antigen count.
 #' @param range Within-cluster scatter range passed to
 #'   \code{\link{map_maker_coord}}.
-#' @param n_blocks Number of surveillance blocks.
 #' @param n_ref_per_block Number of active reference pairs per block (rolling
 #'   window width).
-#' @param n_test_ag_per_block Number of test antigens per block.
 #' @param ref_step Number of reference pairs added / dropped per block.
 #'   Default 2.
 #' @param coincident Controls which antigen positions are reused as reference
@@ -70,8 +70,9 @@
 #' @return A list with:
 #' \describe{
 #'   \item{titre_tables}{Named list of four character matrices (hiA_agA,
-#'     hiA_agB, hiB_agA, hiB_agB), each n_antigens x n_ref_pairs, with
-#'     \code{"*"} for unmeasured cells.}
+#'     hiA_agB, hiB_agA, hiB_agB), each (n_ref_pairs + n_blocks *
+#'     n_test_ag_per_block) x n_ref_pairs, with \code{"*"} for unmeasured
+#'     cells.}
 #'   \item{full_titre_tables}{Same four tables without the missing-data mask.}
 #'   \item{true_titre_table}{Character matrix from true (noiseless) distances,
 #'     no missing-data mask.}
@@ -98,25 +99,23 @@
 #'                   centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 #'
 #' result <- sim_cluster_surv(
-#'   n_antigens          = 15L,
 #'   n_ref_pairs         = 3L,
+#'   n_blocks            = 2L,
+#'   n_test_ag_per_block = 6L,
 #'   true_ag_coord       = true_ag,
 #'   range               = 0.25,
-#'   n_blocks            = 2L,
 #'   n_ref_per_block     = 2L,
-#'   n_test_ag_per_block = 6L,
 #'   seed                = 1
 #' )
 #' dim(result$titre_tables$hiA_agA)  # 15 x 3
 #' result$titre_tables$hiA_agA       # "*" marks unmeasured cells
 sim_cluster_surv <- function(
-  n_antigens,
   n_ref_pairs,
+  n_blocks,
+  n_test_ag_per_block,
   true_ag_coord,
   range,
-  n_blocks,
   n_ref_per_block,
-  n_test_ag_per_block,
   ref_step        = 2L,
   coincident      = seq_len(n_ref_pairs),
   dimensions      = 2L,
@@ -133,6 +132,8 @@ sim_cluster_surv <- function(
   seed
 ) {
   if (missing(seed)) seed <- sample(1:1e6, 1)
+
+  n_antigens <- n_ref_pairs + as.integer(n_blocks) * as.integer(n_test_ag_per_block)
 
   # --- Coordinate generation ---
   m <- map_maker_coord(
@@ -154,16 +155,7 @@ sim_cluster_surv <- function(
   n_ag <- n_antigens
   n_sr <- n_ref_pairs
 
-  # --- Validate block structure ---
   test_ag_rows <- sort(setdiff(seq_len(n_ag), sera_idx))
-  n_test_ag    <- length(test_ag_rows)
-  expected_test <- as.integer(n_blocks) * as.integer(n_test_ag_per_block)
-  if (n_test_ag != expected_test) {
-    stop(sprintf(
-      "n_blocks (%d) * n_test_ag_per_block (%d) = %d but there are %d test antigen rows (n_antigens - n_ref_pairs = %d - %d)",
-      n_blocks, n_test_ag_per_block, expected_test, n_test_ag, n_ag, n_sr
-    ))
-  }
 
   # --- Rolling reference window ---
   block_active <- lapply(seq_len(n_blocks), function(b) {
@@ -258,9 +250,7 @@ sim_cluster_surv <- function(
       serum_noise = sr_noise_vals
     ),
     params = list(
-      n_antigens          = n_antigens,
       n_ref_pairs         = n_ref_pairs,
-      range               = range,
       n_blocks            = n_blocks,
       n_ref_per_block     = n_ref_per_block,
       n_test_ag_per_block = n_test_ag_per_block,

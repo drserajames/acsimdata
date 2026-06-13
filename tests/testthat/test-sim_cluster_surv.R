@@ -10,13 +10,12 @@ true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
                   centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 
 small <- sim_cluster_surv(
-  n_antigens          = 15L,
   n_ref_pairs         = 3L,
+  n_blocks            = 2L,
+  n_test_ag_per_block = 6L,
   true_ag_coord       = true_ag,
   range               = 0.25,
-  n_blocks            = 2L,
   n_ref_per_block     = 2L,
-  n_test_ag_per_block = 6L,
   ref_step            = 1L,
   seed                = 1
 )
@@ -104,13 +103,13 @@ test_that("ref AG pair 3 (row 3) measured in cols 2:3 only", {
 
 test_that("same seed gives identical result", {
   r1 <- sim_cluster_surv(
-    n_antigens = 15L, n_ref_pairs = 3L, true_ag_coord = true_ag, range = 0.25,
-    n_blocks = 2L, n_ref_per_block = 2L, n_test_ag_per_block = 6L,
+    n_ref_pairs = 3L, n_blocks = 2L, n_test_ag_per_block = 6L,
+    true_ag_coord = true_ag, range = 0.25, n_ref_per_block = 2L,
     ref_step = 1L, seed = 42
   )
   r2 <- sim_cluster_surv(
-    n_antigens = 15L, n_ref_pairs = 3L, true_ag_coord = true_ag, range = 0.25,
-    n_blocks = 2L, n_ref_per_block = 2L, n_test_ag_per_block = 6L,
+    n_ref_pairs = 3L, n_blocks = 2L, n_test_ag_per_block = 6L,
+    true_ag_coord = true_ag, range = 0.25, n_ref_per_block = 2L,
     ref_step = 1L, seed = 42
   )
   expect_identical(r1$titre_tables, r2$titre_tables)
@@ -118,13 +117,13 @@ test_that("same seed gives identical result", {
 
 test_that("different seeds produce different titre values", {
   r1 <- sim_cluster_surv(
-    n_antigens = 15L, n_ref_pairs = 3L, true_ag_coord = true_ag, range = 0.25,
-    n_blocks = 2L, n_ref_per_block = 2L, n_test_ag_per_block = 6L,
+    n_ref_pairs = 3L, n_blocks = 2L, n_test_ag_per_block = 6L,
+    true_ag_coord = true_ag, range = 0.25, n_ref_per_block = 2L,
     ref_step = 1L, seed = 1
   )
   r2 <- sim_cluster_surv(
-    n_antigens = 15L, n_ref_pairs = 3L, true_ag_coord = true_ag, range = 0.25,
-    n_blocks = 2L, n_ref_per_block = 2L, n_test_ag_per_block = 6L,
+    n_ref_pairs = 3L, n_blocks = 2L, n_test_ag_per_block = 6L,
+    true_ag_coord = true_ag, range = 0.25, n_ref_per_block = 2L,
     ref_step = 1L, seed = 2
   )
   expect_false(identical(r1$titre_tables$hiA_agA, r2$titre_tables$hiA_agA))
@@ -132,15 +131,6 @@ test_that("different seeds produce different titre values", {
 
 # --- Input validation ---
 
-test_that("error when n_blocks * n_test_ag_per_block != n_test antigen rows", {
-  expect_error(
-    sim_cluster_surv(
-      n_antigens = 15L, n_ref_pairs = 3L, true_ag_coord = true_ag, range = 0.25,
-      n_blocks = 3L, n_ref_per_block = 2L, n_test_ag_per_block = 6L, seed = 1
-    ),
-    "n_blocks"
-  )
-})
 
 # --- Block structure ---
 
@@ -167,13 +157,12 @@ test_that("noise components have correct dimensions", {
 
 test_that("example in documentation runs and gives 15 x 3 tables", {
   r <- sim_cluster_surv(
-    n_antigens          = 15L,
     n_ref_pairs         = 3L,
+    n_blocks            = 2L,
+    n_test_ag_per_block = 6L,
     true_ag_coord       = true_ag,
     range               = 0.25,
-    n_blocks            = 2L,
     n_ref_per_block     = 2L,
-    n_test_ag_per_block = 6L,
     seed                = 1
   )
   expect_equal(dim(r$titre_tables$hiA_agA), c(15L, 3L))
@@ -186,13 +175,12 @@ test_that("works with 3-cluster full-scale structure (1884 x 48)", {
     centres[rep(1:3, each = 612), ]   # rows 49-1884: test AGs
   )
   r <- sim_cluster_surv(
-    n_antigens          = 1884L,
     n_ref_pairs         = 48L,
+    n_blocks            = 18L,
+    n_test_ag_per_block = 102L,
     true_ag_coord       = true_ag_large,
     range               = 0.25,
-    n_blocks            = 18L,
     n_ref_per_block     = 12L,
-    n_test_ag_per_block = 102L,
     seed                = 1
   )
   expect_equal(dim(r$titre_tables$hiA_agA), c(1884L, 48L))

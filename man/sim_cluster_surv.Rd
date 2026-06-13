@@ -5,13 +5,12 @@
 \title{Simulate rolling-panel surveillance HI tables with factorial noise}
 \usage{
 sim_cluster_surv(
-  n_antigens,
   n_ref_pairs,
+  n_blocks,
+  n_test_ag_per_block,
   true_ag_coord,
   range,
-  n_blocks,
   n_ref_per_block,
-  n_test_ag_per_block,
   ref_step = 2L,
   coincident = seq_len(n_ref_pairs),
   dimensions = 2L,
@@ -29,24 +28,23 @@ sim_cluster_surv(
 )
 }
 \arguments{
-\item{n_antigens}{Total number of antigen points.}
-
 \item{n_ref_pairs}{Number of reference antigen-serum pairs (= number of
 sera).}
 
-\item{true_ag_coord}{Matrix of cluster centre coordinates, one row per
-antigen (or one row per cluster, recycled to \code{n_antigens} rows by
-\code{\link{map_maker_coord}}).}
+\item{n_blocks}{Number of surveillance blocks.}
+
+\item{n_test_ag_per_block}{Number of test antigens per block.}
+
+\item{true_ag_coord}{Matrix of cluster centre coordinates.  Must have either
+one row per antigen (\code{n_ref_pairs + n_blocks * n_test_ag_per_block}
+rows) or fewer rows that \code{\link{map_maker_coord}} will recycle to
+the total antigen count.}
 
 \item{range}{Within-cluster scatter range passed to
 \code{\link{map_maker_coord}}.}
 
-\item{n_blocks}{Number of surveillance blocks.}
-
 \item{n_ref_per_block}{Number of active reference pairs per block (rolling
 window width).}
-
-\item{n_test_ag_per_block}{Number of test antigens per block.}
 
 \item{ref_step}{Number of reference pairs added / dropped per block.
 Default 2.}
@@ -92,8 +90,9 @@ Default 1.}
 A list with:
 \describe{
 \item{titre_tables}{Named list of four character matrices (hiA_agA,
-hiA_agB, hiB_agA, hiB_agB), each n_antigens x n_ref_pairs, with
-\code{"*"} for unmeasured cells.}
+hiA_agB, hiB_agA, hiB_agB), each (n_ref_pairs + n_blocks *
+n_test_ag_per_block) x n_ref_pairs, with \code{"*"} for unmeasured
+cells.}
 \item{full_titre_tables}{Same four tables without the missing-data mask.}
 \item{true_titre_table}{Character matrix from true (noiseless) distances,
 no missing-data mask.}
@@ -149,13 +148,12 @@ true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
                   centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 
 result <- sim_cluster_surv(
-  n_antigens          = 15L,
   n_ref_pairs         = 3L,
+  n_blocks            = 2L,
+  n_test_ag_per_block = 6L,
   true_ag_coord       = true_ag,
   range               = 0.25,
-  n_blocks            = 2L,
   n_ref_per_block     = 2L,
-  n_test_ag_per_block = 6L,
   seed                = 1
 )
 dim(result$titre_tables$hiA_agA)  # 15 x 3
