@@ -5,13 +5,15 @@
 \title{Simulate rolling-panel surveillance HI tables with factorial noise}
 \usage{
 sim_cluster_surv(
-  slim_dist,
-  sera_idx,
   n_blocks,
-  n_test_ag_per_block = NULL,
-  block_assignments = NULL,
-  ref_window = 12L,
-  ref_step = 2L,
+  n_test_ag_per_block,
+  true_ag_coord,
+  range,
+  n_ref_per_block,
+  ref_step = 1L,
+  coincident = NULL,
+  dimensions = 2L,
+  rdistribution = stats::runif,
   hi_noise_sd = 1,
   ag_noise_sd = 1,
   noise_scale = 0.5,
@@ -25,30 +27,37 @@ sim_cluster_surv(
 )
 }
 \arguments{
-\item{slim_dist}{Numeric matrix of true antigen-serum distances
-(n_ag x n_sr) with rownames matching \code{"AG..."} and colnames matching
-\code{"SR..."} (as produced by \code{map_maker_coord} or
-\code{map_maker_random}).}
-
-\item{sera_idx}{Integer vector of length \code{ncol(slim_dist)}: row index
-of the antigen homologous to each serum column.  \code{sera_idx[k]} is
-the reference antigen for serum \code{k}.}
-
 \item{n_blocks}{Number of surveillance blocks.}
 
-\item{n_test_ag_per_block}{Number of test antigens per block.  Defaults to
-\code{floor(n_test_ag / n_blocks)} where \code{n_test_ag} is the number
-of rows in \code{slim_dist} not in \code{sera_idx}.  An error is raised
-if the default does not divide evenly.}
+\item{n_test_ag_per_block}{Number of test antigens per block.}
 
-\item{block_assignments}{Optional list of length \code{n_blocks}: each
-element is an integer vector of test-AG row indices (rows of
-\code{slim_dist}) for that block.  Overrides the sequential default.}
+\item{true_ag_coord}{Matrix of cluster centre coordinates.  Must have either
+one row per antigen (\code{n_ref_pairs + n_blocks * n_test_ag_per_block}
+rows) or fewer rows that \code{\link{map_maker_coord}} will recycle to
+the total antigen count.}
 
-\item{ref_window}{Number of active reference pairs per block. Default 12.}
+\item{range}{Within-cluster scatter range passed to
+\code{\link{map_maker_coord}}.}
+
+\item{n_ref_per_block}{Number of active reference pairs per block (rolling
+window width).}
 
 \item{ref_step}{Number of reference pairs added / dropped per block.
-Default 2.}
+Default 1.  Must satisfy \code{ref_step <= n_ref_per_block}; larger
+values would leave gaps in the reference panel where some pairs are never
+active in any block.  Together with \code{n_ref_per_block} and
+\code{n_blocks} this determines the total number of reference pairs:
+\code{n_ref_per_block + (n_blocks - 1) * ref_step}.}
+
+\item{coincident}{Controls which antigen positions are reused as reference
+sera.  Defaults to \code{seq_len(n_ref_pairs)} (first \code{n_ref_pairs}
+antigens).  Pass an integer vector of the same length to choose specific
+indices.  Forwarded to \code{\link{map_maker_coord}}.}
+
+\item{dimensions}{Number of map dimensions. Default 2.}
+
+\item{rdistribution}{Distribution function for within-cluster scatter.
+Default \code{stats::runif}.}
 
 \item{hi_noise_sd}{Standard deviation of per-titre (HI) noise before
 scaling. Default 1.}
@@ -56,8 +65,8 @@ scaling. Default 1.}
 \item{ag_noise_sd}{Standard deviation of per-antigen noise before scaling.
 Default 1.}
 
-\item{noise_scale}{Scaling factor applied to both noise components.
-Default 0.5.}
+\item{noise_scale}{Scaling factor applied to both HI and antigen noise
+components. Default 0.5.}
 
 \item{serum_noise_min}{Lower bound of the shared uniform serum noise.
 Default 0.}
@@ -73,76 +82,85 @@ Default 1.}
 
 \item{min_log_titre}{Minimum log titre floor. Default 0.}
 
-\item{seed}{Integer random seed for reproducibility.}
+\item{seed}{Integer random seed.  Used for both coordinate generation
+(forwarded to \code{\link{map_maker_coord}}) and noise draws (offset by
+1 internally).}
 }
 \value{
 A list with:
 \describe{
 \item{titre_tables}{Named list of four character matrices (hiA_agA,
-hiA_agB, hiB_agA, hiB_agB), each n_ag x n_sr, with \code{"*"} for
-unmeasured cells.}
+hiA_agB, hiB_agA, hiB_agB), each n_antigens x n_ref_pairs, with
+\code{"*"} for unmeasured cells.}
 \item{full_titre_tables}{Same four tables without the missing-data mask.}
 \item{true_titre_table}{Character matrix from true (noiseless) distances,
 no missing-data mask.}
-\item{slim_dist}{The input distance matrix (unchanged).}
+\item{ag_coord}{n_antigens x dimensions antigen coordinate matrix.}
+\item{sr_coord}{n_ref_pairs x dimensions serum coordinate matrix.}
+\item{slim_dist}{n_antigens x n_ref_pairs true distance matrix.}
 \item{block_active}{List of length n_blocks: active reference pair indices
-(1-based within 1:n_sr) for each block.}
-\item{block_test_ag_rows}{List of length n_blocks: row indices of the test
+for each block.}
+\item{block_test_ag_rows}{List of length n_blocks: row indices of test
 antigens for each block.}
-\item{noise}{List: hi_A and hi_B (n_ag x n_sr matrices), ag_A and ag_B
-(length-n_ag vectors, already scaled), serum_noise (length-n_sr
-vector).}
-\item{params}{List of all resolved input parameters.}
+\item{noise}{List: hi_A and hi_B (n_antigens x n_ref_pairs matrices),
+ag_A and ag_B (length-n_antigens vectors, already scaled),
+serum_noise (length-n_ref_pairs vector).}
+\item{params}{List of all resolved input parameters, including derived
+\code{n_ref_pairs} and \code{n_antigens}.}
 }
 }
 \description{
-Given a pre-computed antigen-serum distance matrix, generates four HI titre
-tables using a rolling reference panel structure and a 2 x 2 factorial
-noise design.
+Generates coordinates via \code{\link{map_maker_coord}}, then produces
+four HI titre tables using a rolling reference panel structure and a
+2 x 2 factorial noise design.
 }
 \details{
-\strong{Inputs.}  The caller is responsible for generating \code{slim_dist}
-(e.g. via \code{\link{map_maker_coord}} or \code{\link{map_maker_random}})
-and choosing \code{sera_idx}.  This separates coordinate generation from
-surveillance structure, so any distance matrix can be used.
+\strong{Derived counts.}  The number of reference pairs (= sera) and the
+total number of antigens are computed from the user-supplied parameters:
+\itemize{
+\item \code{n_ref_pairs = n_ref_per_block + (n_blocks - 1) * ref_step}
+\item \code{n_antigens  = n_ref_pairs + n_blocks * n_test_ag_per_block}
+}
 
-\strong{Reference panel.}  \code{sera_idx[k]} gives the row index of the
-antigen that is homologous to serum column \code{k}.  These reference
-antigens are measured against all reference sera that share at least one
-active window with them.
+\strong{Coordinate layout.}  By default the first \code{n_ref_pairs}
+antigens are used as the coincident reference sera.  Pass
+\code{true_ag_coord} with reference antigen rows first and test antigen
+rows after so that this default works without further configuration.
+Supply a custom integer vector to \code{coincident} to choose different
+antigen indices as reference sera.
 
-\strong{Test antigens.}  Rows of \code{slim_dist} not in \code{sera_idx}
-are test antigens.  They are assigned to blocks sequentially in row order
-(block 1 gets the first \code{n_test_ag_per_block} test AG rows, block 2
-gets the next batch, and so on).  Pass a custom \code{block_assignments}
-list to override this.
+\strong{Rolling reference window.}  Block \code{b} has active reference
+pair indices
+\code{(1 + (b-1)*ref_step) : (n_ref_per_block + (b-1)*ref_step)}.
 
-\strong{Rolling window.}  Block \code{b} has active reference pair indices
-\code{(1 + (b-1)*ref_step) : min(n_sr, 1 + (b-1)*ref_step + ref_window - 1)}.
-Reference pairs near the end of the sequence may appear in fewer blocks.
+\strong{Test antigens.}  Antigen rows not in \code{coincident} are test
+antigens, assigned to blocks sequentially in row order.
 
 \strong{Factorial noise.}  A single shared serum noise draw (uniform) plus
 two HI noise realisations (hi_A, hi_B) crossed with two antigen noise
 realisations (ag_A, ag_B), each pre-scaled by \code{noise_scale}, yields
-four noisy distance tables that are converted to HI titres.
+four noisy distance tables converted to HI titres.  Noise is added to
+distances (equivalent to the log-titre scale), consistent with
+\code{\link{add_noise}}.
 }
 \examples{
-# Three clusters arranged in an equilateral triangle (side 3).
-# Each cluster has 1 reference pair + 4 test antigens = 5 antigens.
-# Total: 15 antigens, 3 reference sera, 2 surveillance blocks.
+# Three clusters in an equilateral triangle (side 3, scatter range 0.25).
+# n_ref_per_block = 2, n_blocks = 2, ref_step = 1 (default)
+# => n_ref_pairs = 2 + (2-1)*1 = 3; n_antigens = 3 + 2*6 = 15
+# Reference antigen rows first (one per cluster), test antigens after.
 
 centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
-true_ag <- centres[rep(1:3, each = 5), ]   # 15 antigens, 5 per cluster
+true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
+                  centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 
-# Antigen 1 (cluster A), 6 (cluster B), 11 (cluster C) are reference pairs
-sera_idx <- c(1L, 6L, 11L)
-
-m <- map_maker_coord(15L, 3L, true_ag, range = 0.25,
-                     coincident = sera_idx, seed = 1)
-
-# 2 blocks, 6 test antigens per block (2 per cluster), rolling window of 2
-result <- sim_cluster_surv(m$slim_dist, sera_idx, n_blocks = 2L,
-                           ref_window = 2L, seed = 1)
-dim(result$titre_tables$hiA_agA)   # 15 x 3
-result$titre_tables$hiA_agA        # "*" shows unmeasured cells
+result <- sim_cluster_surv(
+  n_blocks            = 2L,
+  n_test_ag_per_block = 6L,
+  true_ag_coord       = true_ag,
+  range               = 0.25,
+  n_ref_per_block     = 2L,
+  seed                = 1
+)
+dim(result$titre_tables$hiA_agA)  # 15 x 3
+result$titre_tables$hiA_agA       # "*" marks unmeasured cells
 }

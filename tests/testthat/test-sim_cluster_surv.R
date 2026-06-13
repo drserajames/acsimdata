@@ -1,25 +1,24 @@
-# Test setup: 18 AG x 6 SR distance matrix with known structure
-# sera_idx = c(1,2, 7,8, 13,14) — reference pairs 1-6 (2 per cluster of 6)
-# test AGs: rows c(3,4,5,6, 9,10,11,12, 15,16,17,18)
-# ref_window=4, ref_step=2, n_blocks=2:
-#   block 1 active: 1:4; block 2 active: 3:6
-# block_test_ag_rows (sequential):
-#   block 1: c(3,4,5,6,9,10); block 2: c(11,12,15,16,17,18)
-# ref_ag_active_sera:
-#   k=1 (row 1): sera 1:4; k=2 (row 2): 1:4
-#   k=3 (row 7): 1:6; k=4 (row 8): 1:6
-#   k=5 (row 13): 3:6; k=6 (row 14): 3:6
+# Test setup: 3 clusters, reference AGs in rows 1-3, test AGs in rows 4-15.
+# n_ref_per_block=2, n_blocks=2, ref_step=1 => n_ref_pairs = 2+(2-1)*1 = 3
+# n_antigens = 3 + 2*6 = 15
+# block 1 active pairs: 1:2
+# block 2 active pairs: 2:3
+# ref_ag_active_sera: k1->1:2, k2->1:3, k3->2:3
+# block_test_ag_rows: block1=4:9, block2=10:15
 
-set.seed(99)
-slim <- matrix(
-  abs(stats::rnorm(18 * 6)),
-  nrow = 18, ncol = 6,
-  dimnames = list(paste0("AG", 1:18), paste0("SR", 1:6))
+centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
+true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
+                  centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
+
+small <- sim_cluster_surv(
+  n_blocks            = 2L,
+  n_test_ag_per_block = 6L,
+  true_ag_coord       = true_ag,
+  range               = 0.25,
+  n_ref_per_block     = 2L,
+  ref_step            = 1L,
+  seed                = 1
 )
-si <- c(1L, 2L, 7L, 8L, 13L, 14L)
-
-small <- sim_cluster_surv(slim, si, n_blocks = 2,
-                           ref_window = 4, ref_step = 2, seed = 1)
 
 # --- Structure ---
 
@@ -29,8 +28,8 @@ test_that("returns four named titre tables", {
                   c("hiA_agA", "hiA_agB", "hiB_agA", "hiB_agB"))
 })
 
-test_that("titre table dimensions match slim_dist", {
-  expect_equal(dim(small$titre_tables$hiA_agA), c(18L, 6L))
+test_that("titre table dimensions are n_antigens x n_ref_pairs", {
+  expect_equal(dim(small$titre_tables$hiA_agA), c(15L, 3L))
 })
 
 test_that("all four tables have identical missing pattern", {
@@ -40,122 +39,160 @@ test_that("all four tables have identical missing pattern", {
   expect_identical(miss[[1]], miss[[4]])
 })
 
-# --- Missing pattern: test antigens ---
-
-test_that("block-1 test AGs measured only in active cols 1:4", {
-  tt <- small$titre_tables$hiA_agA
-  b1_rows <- c(3, 4, 5, 6, 9, 10)
-  expect_true(all(tt[b1_rows, 1:4] != "*"))
-  expect_true(all(tt[b1_rows, 5:6] == "*"))
+test_that("ag_coord and sr_coord returned with correct dimensions", {
+  expect_equal(dim(small$ag_coord), c(15L, 2L))
+  expect_equal(dim(small$sr_coord), c(3L, 2L))
 })
 
-test_that("block-2 test AGs measured only in active cols 3:6", {
+test_that("slim_dist returned with correct dimensions", {
+  expect_equal(dim(small$slim_dist), c(15L, 3L))
+})
+
+# --- Derived counts in params ---
+
+test_that("params records derived n_ref_pairs and n_antigens", {
+  expect_equal(small$params$n_ref_pairs, 3L)
+  expect_equal(small$params$n_antigens, 15L)
+})
+
+test_that("params$coincident defaults to seq_len(n_ref_pairs)", {
+  expect_equal(small$params$coincident, 1:3)
+})
+
+test_that("homologous distances are zero (ref AGs = sera positions)", {
+  # Default coincident = 1:3 means AG1=SR1, AG2=SR2, AG3=SR3
+  expect_equal(small$slim_dist[1, 1], 0)
+  expect_equal(small$slim_dist[2, 2], 0)
+  expect_equal(small$slim_dist[3, 3], 0)
+})
+
+# --- Missing pattern: test antigens ---
+# block 1 (rows 4:9): cols 1:2 measured; col 3 missing
+# block 2 (rows 10:15): cols 2:3 measured; col 1 missing
+
+test_that("block-1 test AGs measured only in active cols 1:2", {
   tt <- small$titre_tables$hiA_agA
-  b2_rows <- c(11, 12, 15, 16, 17, 18)
-  expect_true(all(tt[b2_rows, 3:6] != "*"))
-  expect_true(all(tt[b2_rows, 1:2] == "*"))
+  expect_true(all(tt[4:9, 1:2] != "*"))
+  expect_true(all(tt[4:9, 3]   == "*"))
+})
+
+test_that("block-2 test AGs measured only in active cols 2:3", {
+  tt <- small$titre_tables$hiA_agA
+  expect_true(all(tt[10:15, 2:3] != "*"))
+  expect_true(all(tt[10:15, 1]   == "*"))
 })
 
 # --- Missing pattern: reference antigens ---
+# pair 1 (row 1): active block 1 -> sera 1:2 only
+# pair 2 (row 2): active blocks 1 & 2 -> sera 1:3
+# pair 3 (row 3): active block 2 -> sera 2:3 only
 
-test_that("ref AG pair 1 (row 1) measured in cols 1:4 only", {
+test_that("ref AG pair 1 (row 1) measured in cols 1:2 only", {
   tt <- small$titre_tables$hiA_agA
-  expect_true(all(tt[1, 1:4] != "*"))
-  expect_true(all(tt[1, 5:6] == "*"))
+  expect_true(all(tt[1, 1:2] != "*"))
+  expect_true(tt[1, 3] == "*")
 })
 
-test_that("ref AG pair 5 (row 13) measured in cols 3:6 only", {
+test_that("ref AG pair 2 (row 2) measured in all cols (spans both blocks)", {
   tt <- small$titre_tables$hiA_agA
-  expect_true(all(tt[13, 3:6] != "*"))
-  expect_true(all(tt[13, 1:2] == "*"))
+  expect_true(all(tt[2, ] != "*"))
 })
 
-test_that("ref AG pair 3 (row 7) measured in all 6 cols", {
+test_that("ref AG pair 3 (row 3) measured in cols 2:3 only", {
   tt <- small$titre_tables$hiA_agA
-  expect_true(all(tt[7, ] != "*"))
+  expect_true(all(tt[3, 2:3] != "*"))
+  expect_true(tt[3, 1] == "*")
 })
 
 # --- Reproducibility ---
 
 test_that("same seed gives identical result", {
-  r1 <- sim_cluster_surv(slim, si, n_blocks = 2,
-                          ref_window = 4, ref_step = 2, seed = 42)
-  r2 <- sim_cluster_surv(slim, si, n_blocks = 2,
-                          ref_window = 4, ref_step = 2, seed = 42)
+  r1 <- sim_cluster_surv(
+    n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+    range = 0.25, n_ref_per_block = 2L, ref_step = 1L, seed = 42
+  )
+  r2 <- sim_cluster_surv(
+    n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+    range = 0.25, n_ref_per_block = 2L, ref_step = 1L, seed = 42
+  )
   expect_identical(r1$titre_tables, r2$titre_tables)
 })
 
 test_that("different seeds produce different titre values", {
-  r1 <- sim_cluster_surv(slim, si, n_blocks = 2,
-                          ref_window = 4, ref_step = 2, seed = 1)
-  r2 <- sim_cluster_surv(slim, si, n_blocks = 2,
-                          ref_window = 4, ref_step = 2, seed = 2)
+  r1 <- sim_cluster_surv(
+    n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+    range = 0.25, n_ref_per_block = 2L, ref_step = 1L, seed = 1
+  )
+  r2 <- sim_cluster_surv(
+    n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+    range = 0.25, n_ref_per_block = 2L, ref_step = 1L, seed = 2
+  )
   expect_false(identical(r1$titre_tables$hiA_agA, r2$titre_tables$hiA_agA))
 })
 
-# --- Input validation ---
+# --- Block structure ---
 
-test_that("error when sera_idx length != ncol(slim_dist)", {
-  expect_error(
-    sim_cluster_surv(slim, c(1L, 2L), n_blocks = 2, seed = 1),
-    "ncol"
-  )
+test_that("block_active has correct indices with ref_step=1", {
+  expect_equal(small$block_active[[1]], 1:2)
+  expect_equal(small$block_active[[2]], 2:3)
 })
 
-test_that("error when sera_idx out of row range", {
-  expect_error(
-    sim_cluster_surv(slim, c(1L, 2L, 7L, 8L, 13L, 99L), n_blocks = 2, seed = 1),
-    "nrow"
-  )
-})
-
-test_that("error when test AGs not divisible by n_blocks", {
-  expect_error(
-    sim_cluster_surv(slim, si, n_blocks = 5, seed = 1),
-    "divisible"
-  )
-})
-
-# --- Block assignment ---
-
-test_that("block_active has correct indices", {
-  expect_equal(small$block_active[[1]], 1:4)
-  expect_equal(small$block_active[[2]], 3:6)
-})
-
-test_that("block_test_ag_rows assigns test AGs sequentially", {
-  expect_equal(sort(unlist(small$block_test_ag_rows)),
-               sort(setdiff(1:18, si)))
-  expect_equal(small$block_test_ag_rows[[1]], c(3L, 4L, 5L, 6L, 9L, 10L))
-  expect_equal(small$block_test_ag_rows[[2]], c(11L, 12L, 15L, 16L, 17L, 18L))
-})
-
-test_that("custom block_assignments are used when supplied", {
-  custom <- list(c(3L, 4L, 9L, 10L, 15L, 16L),
-                 c(5L, 6L, 11L, 12L, 17L, 18L))
-  rc <- sim_cluster_surv(slim, si, n_blocks = 2, block_assignments = custom,
-                          ref_window = 4, ref_step = 2, seed = 1)
-  expect_equal(rc$block_test_ag_rows, custom)
+test_that("block_test_ag_rows cover all test AGs without overlap", {
+  all_assigned <- sort(unlist(small$block_test_ag_rows))
+  expect_equal(all_assigned, 4:15)
 })
 
 # --- Noise dimensions ---
 
 test_that("noise components have correct dimensions", {
-  expect_equal(dim(small$noise$hi_A), c(18L, 6L))
-  expect_equal(dim(small$noise$hi_B), c(18L, 6L))
-  expect_equal(length(small$noise$ag_A), 18L)
-  expect_equal(length(small$noise$serum_noise), 6L)
+  expect_equal(dim(small$noise$hi_A), c(15L, 3L))
+  expect_equal(dim(small$noise$hi_B), c(15L, 3L))
+  expect_equal(length(small$noise$ag_A), 15L)
+  expect_equal(length(small$noise$serum_noise), 3L)
 })
 
-# --- Integration: 3-cluster equilateral triangle map ---
+# --- Input validation ---
 
-test_that("works with 3-cluster map_maker_coord output (1884 x 48)", {
+test_that("error when ref_step > n_ref_per_block", {
+  expect_error(
+    sim_cluster_surv(
+      n_blocks = 2L, n_test_ag_per_block = 6L, true_ag_coord = true_ag,
+      range = 0.25, n_ref_per_block = 2L, ref_step = 3L, seed = 1
+    ),
+    "ref_step"
+  )
+})
+
+# --- Integration: example from @examples ---
+
+test_that("example in documentation runs and gives 15 x 3 tables", {
+  r <- sim_cluster_surv(
+    n_blocks            = 2L,
+    n_test_ag_per_block = 6L,
+    true_ag_coord       = true_ag,
+    range               = 0.25,
+    n_ref_per_block     = 2L,
+    seed                = 1
+  )
+  expect_equal(dim(r$titre_tables$hiA_agA), c(15L, 3L))
+})
+
+test_that("works with 3-cluster full-scale structure (1884 x 48)", {
   skip_on_cran()
-  centres  <- matrix(c(0, 0, 3, 0, 1.5, 3 * sqrt(3) / 2), ncol = 2, byrow = TRUE)
-  true_ag  <- centres[rep(1:3, each = 628), ]
-  sidx     <- c(1:16, 629:644, 1257:1272)
-  m        <- map_maker_coord(1884L, 48L, true_ag, range = 0.25,
-                              coincident = sidx, seed = 1)
-  r        <- sim_cluster_surv(m$slim_dist, sidx, n_blocks = 18L, seed = 1)
+  # n_ref_per_block=14, n_blocks=18, ref_step=2 => n_ref_pairs = 14+17*2 = 48
+  # n_antigens = 48 + 18*102 = 1884
+  true_ag_large <- rbind(
+    centres[rep(1:3, each = 16), ],   # rows 1-48:   reference AGs
+    centres[rep(1:3, each = 612), ]   # rows 49-1884: test AGs
+  )
+  r <- sim_cluster_surv(
+    n_blocks            = 18L,
+    n_test_ag_per_block = 102L,
+    true_ag_coord       = true_ag_large,
+    range               = 0.25,
+    n_ref_per_block     = 14L,
+    ref_step            = 2L,
+    seed                = 1
+  )
   expect_equal(dim(r$titre_tables$hiA_agA), c(1884L, 48L))
 })
