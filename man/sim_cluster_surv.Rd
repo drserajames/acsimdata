@@ -163,5 +163,5 @@ result <- sim_cluster_surv(
   seed                = 1
 )
 dim(result$titre_tables$hiA_agA)    # 15 x 3
-result$titre_tables$hiA_agA         # columns SR1, SR6, SR11; "*" marks unmeasured cells
+result$titre_tables$hiA_agA         # columns SR1, SR2, SR3 (coordinate order); "*" marks unmeasured cells
 }
