@@ -14,7 +14,7 @@
     new_idx <- if (n_new > 0L) seq_len(n_new) + next_idx - 1L else integer(0)
     next_idx    <- next_idx + max(0L, n_new)
     intro_table <- c(intro_table, rep(t, max(0L, n_new)))
-    membership[[t]] <- if (t == 1L) new_idx else c(tail(membership[[t - 1L]], n_overlap), new_idx)
+    membership[[t]] <- if (t == 1L) new_idx else c(utils::tail(membership[[t - 1L]], n_overlap), new_idx)
   }
   list(membership = membership, intro_table = intro_table, total = next_idx - 1L)
 }

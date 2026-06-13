@@ -196,9 +196,9 @@ sim_from_map <- function(map,
     set.seed(seed)
     n_dims   <- ncol(ag_coord)
     ag_coord <- ag_coord +
-      matrix(rnorm(n_ag * n_dims, 0, coord_noise_sd), nrow = n_ag, ncol = n_dims)
+      matrix(stats::rnorm(n_ag * n_dims, 0, coord_noise_sd), nrow = n_ag, ncol = n_dims)
     sr_coord <- sr_coord +
-      matrix(rnorm(n_sr * n_dims, 0, coord_noise_sd), nrow = n_sr, ncol = n_dims)
+      matrix(stats::rnorm(n_sr * n_dims, 0, coord_noise_sd), nrow = n_sr, ncol = n_dims)
   }
 
   # ── 4. Pairwise distances (slim n_ag x n_sr matrix) ─────────────────────────
