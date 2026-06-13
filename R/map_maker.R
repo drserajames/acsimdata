@@ -56,8 +56,10 @@ map_maker_random <- function(n_antigens, n_sera, range, dimensions = 2, antigen_
 #' @param n_antigens The number of antigen points in total.
 #' @param n_sera The number of serum points.
 #' @param true_ag_coord A matrix with one row per antigen giving the cluster
-#'   centre for that antigen.  Rows are recycled to length \code{n_antigens},
-#'   so you can pass one row per cluster and they will be repeated as needed.
+#'   centre for that antigen.  If fewer rows than \code{n_antigens} are
+#'   supplied, rows are expanded in grouped order (all cluster 1 first, then
+#'   cluster 2, etc.) so that passing one row per cluster produces contiguous
+#'   blocks of antigens per cluster.
 #' @param true_sr_coord A matrix of cluster centres for the sera, in the same
 #'   format as \code{true_ag_coord}.  Defaults to \code{true_ag_coord}.
 #'   Ignored when \code{coincident} is not \code{FALSE}.
@@ -137,10 +139,11 @@ map_maker_coord <- function(n_antigens, n_sera, true_ag_coord,
     }
   }
 
-  # Recycle true_ag_coord rows to n_antigens
+  # Expand true_ag_coord rows to n_antigens (grouped: all cluster 1 first, then cluster 2, ...)
   if (nrow(true_ag_coord) < n_antigens) {
+    n_centres <- nrow(true_ag_coord)
     true_ag_coord <- true_ag_coord[
-      rep(seq_len(nrow(true_ag_coord)), length.out = n_antigens), , drop = FALSE
+      rep(seq_len(n_centres), each = ceiling(n_antigens / n_centres))[seq_len(n_antigens)], , drop = FALSE
     ]
   }
 
@@ -155,10 +158,11 @@ map_maker_coord <- function(n_antigens, n_sera, true_ag_coord,
     sr_coord           <- ag_coord[sera_idx, , drop = FALSE]
     rownames(sr_coord) <- paste0("SR", seq_len(n_sera))
   } else {
-    # Original behaviour: recycle true_sr_coord rows and scatter independently
+    # Expand true_sr_coord rows to n_sera (grouped, matching true_ag_coord behaviour)
     if (nrow(true_sr_coord) < n_sera) {
+      n_sr_centres <- nrow(true_sr_coord)
       true_sr_coord <- true_sr_coord[
-        rep(seq_len(nrow(true_sr_coord)), length.out = n_sera), , drop = FALSE
+        rep(seq_len(n_sr_centres), each = ceiling(n_sera / n_sr_centres))[seq_len(n_sera)], , drop = FALSE
       ]
     }
     sr_coord <- true_sr_coord[seq_len(n_sera), , drop = FALSE] +

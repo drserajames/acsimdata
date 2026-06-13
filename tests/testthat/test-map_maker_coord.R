@@ -95,14 +95,13 @@ test_that("different seeds give different results", {
   expect_false(isTRUE(all.equal(r1$coord, r2$coord)))
 })
 
-test_that("true_ag_coord with fewer rows than n_antigens is recycled silently", {
-  # 2-row centre matrix recycled to 4 antigens: pattern is (0,0),(5,5),(0,0),(5,5)
+test_that("true_ag_coord with fewer rows than n_antigens is expanded in grouped order", {
+  # 2-row centre matrix expanded to 4 antigens: AGs 1-2 near (0,0), AGs 3-4 near (5,5)
   true_ag <- matrix(c(0, 0, 5, 5), ncol = 2, byrow = TRUE)
   expect_no_warning(map_maker_coord(4, 2, true_ag, range = 1, seed = 1))
   result <- map_maker_coord(4, 2, true_ag, range = 1, seed = 1)
-  # Odd-indexed antigens (1, 3) near (0,0); even-indexed (2, 4) near (5,5)
-  expect_true(all(result$antigen_coord[c(1, 3), ] >= 0 & result$antigen_coord[c(1, 3), ] <= 1))
-  expect_true(all(result$antigen_coord[c(2, 4), ] >= 5 & result$antigen_coord[c(2, 4), ] <= 6))
+  expect_true(all(result$antigen_coord[1:2, ] >= 0 & result$antigen_coord[1:2, ] <= 1))
+  expect_true(all(result$antigen_coord[3:4, ] >= 5 & result$antigen_coord[3:4, ] <= 6))
 })
 
 test_that("independent sera placed near their own cluster centres", {

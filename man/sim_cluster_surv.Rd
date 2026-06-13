@@ -145,13 +145,13 @@ distances (equivalent to the log-titre scale), consistent with
 }
 \examples{
 # Three clusters in an equilateral triangle (side 3, scatter range 0.25).
+# Grouped layout: 5 AGs per cluster (1 reference + 4 test), all cluster 1
+# first, then cluster 2, then cluster 3.
 # n_ref_per_block = 2, n_blocks = 2, ref_step = 1 (default)
 # => n_ref_pairs = 2 + (2-1)*1 = 3; n_antigens = 3 + 2*6 = 15
-# Reference antigen rows first (one per cluster), test antigens after.
 
 centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
-true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
-                  centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
+true_ag  <- centres[rep(1:3, each = 5), ]  # rows 1-5: cluster 1, 6-10: cluster 2, 11-15: cluster 3
 
 result <- sim_cluster_surv(
   n_blocks            = 2L,
@@ -159,8 +159,9 @@ result <- sim_cluster_surv(
   true_ag_coord       = true_ag,
   range               = 0.25,
   n_ref_per_block     = 2L,
+  coincident          = c(1L, 6L, 11L),  # first AG of each cluster = reference
   seed                = 1
 )
-dim(result$titre_tables$hiA_agA)  # 15 x 3
-result$titre_tables$hiA_agA       # "*" marks unmeasured cells
+dim(result$titre_tables$hiA_agA)    # 15 x 3
+result$titre_tables$hiA_agA         # columns SR1, SR6, SR11; "*" marks unmeasured cells
 }

@@ -23,8 +23,10 @@ map_maker_coord(
 \item{n_sera}{The number of serum points.}
 
 \item{true_ag_coord}{A matrix with one row per antigen giving the cluster
-centre for that antigen.  Rows are recycled to length \code{n_antigens},
-so you can pass one row per cluster and they will be repeated as needed.}
+centre for that antigen.  If fewer rows than \code{n_antigens} are
+supplied, rows are expanded in grouped order (all cluster 1 first, then
+cluster 2, etc.) so that passing one row per cluster produces contiguous
+blocks of antigens per cluster.}
 
 \item{true_sr_coord}{A matrix of cluster centres for the sera, in the same
 format as \code{true_ag_coord}.  Defaults to \code{true_ag_coord}.
