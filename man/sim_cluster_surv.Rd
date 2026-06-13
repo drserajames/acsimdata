@@ -5,14 +5,13 @@
 \title{Simulate rolling-panel surveillance HI tables with factorial noise}
 \usage{
 sim_cluster_surv(
-  n_ref_pairs,
   n_blocks,
   n_test_ag_per_block,
   true_ag_coord,
   range,
   n_ref_per_block,
   ref_step = 2L,
-  coincident = seq_len(n_ref_pairs),
+  coincident = NULL,
   dimensions = 2L,
   rdistribution = stats::runif,
   hi_noise_sd = 1,
@@ -28,9 +27,6 @@ sim_cluster_surv(
 )
 }
 \arguments{
-\item{n_ref_pairs}{Number of reference antigen-serum pairs (= number of
-sera).}
-
 \item{n_blocks}{Number of surveillance blocks.}
 
 \item{n_test_ag_per_block}{Number of test antigens per block.}
@@ -47,12 +43,14 @@ the total antigen count.}
 window width).}
 
 \item{ref_step}{Number of reference pairs added / dropped per block.
-Default 2.}
+Default 2.  Together with \code{n_ref_per_block} and \code{n_blocks}
+this determines the total number of reference pairs:
+\code{n_ref_per_block + (n_blocks - 1) * ref_step}.}
 
 \item{coincident}{Controls which antigen positions are reused as reference
 sera.  Defaults to \code{seq_len(n_ref_pairs)} (first \code{n_ref_pairs}
-antigens).  Pass an integer vector of length \code{n_ref_pairs} to choose
-specific indices.  Forwarded to \code{\link{map_maker_coord}}.}
+antigens).  Pass an integer vector of the same length to choose specific
+indices.  Forwarded to \code{\link{map_maker_coord}}.}
 
 \item{dimensions}{Number of map dimensions. Default 2.}
 
@@ -90,9 +88,8 @@ Default 1.}
 A list with:
 \describe{
 \item{titre_tables}{Named list of four character matrices (hiA_agA,
-hiA_agB, hiB_agA, hiB_agB), each (n_ref_pairs + n_blocks *
-n_test_ag_per_block) x n_ref_pairs, with \code{"*"} for unmeasured
-cells.}
+hiA_agB, hiB_agA, hiB_agB), each n_antigens x n_ref_pairs, with
+\code{"*"} for unmeasured cells.}
 \item{full_titre_tables}{Same four tables without the missing-data mask.}
 \item{true_titre_table}{Character matrix from true (noiseless) distances,
 no missing-data mask.}
@@ -106,7 +103,8 @@ antigens for each block.}
 \item{noise}{List: hi_A and hi_B (n_antigens x n_ref_pairs matrices),
 ag_A and ag_B (length-n_antigens vectors, already scaled),
 serum_noise (length-n_ref_pairs vector).}
-\item{params}{List of all resolved input parameters.}
+\item{params}{List of all resolved input parameters, including derived
+\code{n_ref_pairs} and \code{n_antigens}.}
 }
 }
 \description{
@@ -115,22 +113,26 @@ four HI titre tables using a rolling reference panel structure and a
 2 x 2 factorial noise design.
 }
 \details{
+\strong{Derived counts.}  The number of reference pairs (= sera) and the
+total number of antigens are computed from the user-supplied parameters:
+\itemize{
+\item \code{n_ref_pairs = n_ref_per_block + (n_blocks - 1) * ref_step}
+\item \code{n_antigens  = n_ref_pairs + n_blocks * n_test_ag_per_block}
+}
+
 \strong{Coordinate layout.}  By default the first \code{n_ref_pairs}
-antigens are used as the coincident reference sera
-(\code{coincident = seq_len(n_ref_pairs)}).  Pass \code{true_ag_coord}
-with reference antigen rows first and test antigen rows after so that this
-default works without further configuration.  Supply a custom integer vector
-to \code{coincident} to choose different antigen indices as reference sera.
+antigens are used as the coincident reference sera.  Pass
+\code{true_ag_coord} with reference antigen rows first and test antigen
+rows after so that this default works without further configuration.
+Supply a custom integer vector to \code{coincident} to choose different
+antigen indices as reference sera.
 
 \strong{Rolling reference window.}  Block \code{b} has active reference
 pair indices
-\code{(1 + (b-1)*ref_step) : min(n_ref_pairs, 1 + (b-1)*ref_step + n_ref_per_block - 1)}.
-Reference pairs near the end of the sequence may fall in fewer blocks if
-\code{n_ref_pairs < n_ref_per_block + (n_blocks - 1) * ref_step}.
+\code{(1 + (b-1)*ref_step) : (n_ref_per_block + (b-1)*ref_step)}.
 
-\strong{Test antigens.}  Rows of \code{slim_dist} not in \code{sera_idx}
-(derived from \code{coincident}) are test antigens, assigned to blocks
-sequentially in row order.
+\strong{Test antigens.}  Antigen rows not in \code{coincident} are test
+antigens, assigned to blocks sequentially in row order.
 
 \strong{Factorial noise.}  A single shared serum noise draw (uniform) plus
 two HI noise realisations (hi_A, hi_B) crossed with two antigen noise
@@ -141,6 +143,8 @@ distances (equivalent to the log-titre scale), consistent with
 }
 \examples{
 # Three clusters in an equilateral triangle (side 3, scatter range 0.25).
+# n_ref_per_block = 2, n_blocks = 2, ref_step = 1
+# => n_ref_pairs = 2 + (2-1)*1 = 3; n_antigens = 3 + 2*6 = 15
 # Reference antigen rows first (one per cluster), test antigens after.
 
 centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
@@ -148,12 +152,12 @@ true_ag  <- rbind(centres,                        # rows 1-3:  reference AGs
                   centres[rep(1:3, each = 4), ])  # rows 4-15: test AGs
 
 result <- sim_cluster_surv(
-  n_ref_pairs         = 3L,
   n_blocks            = 2L,
   n_test_ag_per_block = 6L,
   true_ag_coord       = true_ag,
   range               = 0.25,
   n_ref_per_block     = 2L,
+  ref_step            = 1L,
   seed                = 1
 )
 dim(result$titre_tables$hiA_agA)  # 15 x 3
