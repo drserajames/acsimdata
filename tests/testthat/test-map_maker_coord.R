@@ -36,9 +36,9 @@ test_that("coincident=TRUE: first n_sera antigens become sera (exact positions)"
   expect_equivalent(result$sera_coord, result$antigen_coord[1:2, ])
 })
 
-test_that("coincident=TRUE: dist matrix is n_antigens x n_antigens", {
+test_that("coincident=TRUE: dist matrix is (n_antigens + n_sera) x (n_antigens + n_sera)", {
   result <- map_maker_coord(4, 2, true_ag_2d, range = 1, seed = 7, coincident = TRUE)
-  expect_equal(dim(result$dist), c(4, 4))
+  expect_equal(dim(result$dist), c(6, 6))
 })
 
 test_that("coincident=TRUE: slim_dist is n_antigens x n_sera with zeros on homologous diagonal", {
@@ -56,9 +56,9 @@ test_that("coincident=integer: specified antigen indices become sera", {
   expect_equal(result$slim_dist[4, 2], 0)   # AG4 = SR2
 })
 
-test_that("coincident=integer: dist matrix is n_antigens x n_antigens", {
+test_that("coincident=integer: dist matrix is (n_antigens + n_sera) x (n_antigens + n_sera)", {
   result <- map_maker_coord(4, 2, true_ag_2d, range = 1, seed = 7, coincident = c(1L, 3L))
-  expect_equal(dim(result$dist), c(4, 4))
+  expect_equal(dim(result$dist), c(6, 6))
 })
 
 test_that("coincident: error on wrong-length index vector", {

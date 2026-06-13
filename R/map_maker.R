@@ -154,13 +154,6 @@ map_maker_coord <- function(n_antigens, n_sera, true_ag_coord,
     # Sera are exact copies of chosen antigen positions — no extra scatter
     sr_coord           <- ag_coord[sera_idx, , drop = FALSE]
     rownames(sr_coord) <- paste0("SR", seq_len(n_sera))
-
-    # Distance matrix covers antigen positions only (n_antigens × n_antigens)
-    dists      <- as.matrix(stats::dist(ag_coord))
-    slim_dists <- dists[seq_len(n_antigens), sera_idx, drop = FALSE]
-    colnames(slim_dists) <- paste0("SR", seq_len(n_sera))
-    all_coord  <- ag_coord          # sera already represented as antigens
-
   } else {
     # Original behaviour: recycle true_sr_coord rows and scatter independently
     if (nrow(true_sr_coord) < n_sera) {
@@ -171,12 +164,14 @@ map_maker_coord <- function(n_antigens, n_sera, true_ag_coord,
     sr_coord <- true_sr_coord[seq_len(n_sera), , drop = FALSE] +
       matrix(rdistribution(n_sera * dimensions, 0, range), ncol = dimensions)
     rownames(sr_coord) <- paste0("SR", seq_len(n_sera))
-
-    all_coord  <- rbind(ag_coord, sr_coord)
-    dists      <- as.matrix(stats::dist(all_coord))
-    slim_dists <- dists[seq_len(n_antigens), seq_len(n_sera) + n_antigens,
-                        drop = FALSE]
   }
+
+  # Always return (n_antigens + n_sera) × (n_antigens + n_sera) dist matrix,
+  # matching map_maker_random — coincident sera appear as duplicate rows
+  all_coord  <- rbind(ag_coord, sr_coord)
+  dists      <- as.matrix(stats::dist(all_coord))
+  slim_dists <- dists[seq_len(n_antigens), seq_len(n_sera) + n_antigens,
+                      drop = FALSE]
 
   list(
     coord         = all_coord,
