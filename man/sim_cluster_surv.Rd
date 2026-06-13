@@ -127,13 +127,22 @@ realisations (ag_A, ag_B), each pre-scaled by \code{noise_scale}, yields
 four noisy distance tables that are converted to HI titres.
 }
 \examples{
-# 3-cluster equilateral triangle (side 3, within-cluster range 0.25)
-centres    <- matrix(c(0, 0, 3, 0, 1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
-n_ag_per_cluster <- 628L
-true_ag    <- centres[rep(1:3, each = n_ag_per_cluster), ]
-sera_idx   <- c(1:16, 629:644, 1257:1272)  # 16 reference pairs per cluster
-m <- map_maker_coord(1884L, 48L, true_ag, range = 0.25,
+# Three clusters arranged in an equilateral triangle (side 3).
+# Each cluster has 1 reference pair + 4 test antigens = 5 antigens.
+# Total: 15 antigens, 3 reference sera, 2 surveillance blocks.
+
+centres <- matrix(c(0, 0,  3, 0,  1.5, 3*sqrt(3)/2), ncol = 2, byrow = TRUE)
+true_ag <- centres[rep(1:3, each = 5), ]   # 15 antigens, 5 per cluster
+
+# Antigen 1 (cluster A), 6 (cluster B), 11 (cluster C) are reference pairs
+sera_idx <- c(1L, 6L, 11L)
+
+m <- map_maker_coord(15L, 3L, true_ag, range = 0.25,
                      coincident = sera_idx, seed = 1)
-result <- sim_cluster_surv(m$slim_dist, sera_idx, n_blocks = 18L)
-dim(result$titre_tables$hiA_agA)  # 1884 x 48
+
+# 2 blocks, 6 test antigens per block (2 per cluster), rolling window of 2
+result <- sim_cluster_surv(m$slim_dist, sera_idx, n_blocks = 2L,
+                           ref_window = 2L, seed = 1)
+dim(result$titre_tables$hiA_agA)   # 15 x 3
+result$titre_tables$hiA_agA        # "*" shows unmeasured cells
 }
