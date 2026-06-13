@@ -116,7 +116,7 @@
 #'   seed                = 1
 #' )
 #' dim(result$titre_tables$hiA_agA)    # 15 x 3
-#' result$titre_tables$hiA_agA         # columns SR1, SR2, SR3 (coordinate order); "*" marks unmeasured cells
+#' result$titre_tables$hiA_agA         # columns SR1, SR6, SR11 (matching homologous antigen); "*" marks unmeasured cells
 sim_cluster_surv <- function(
   n_blocks,
   n_test_ag_per_block,
@@ -167,10 +167,15 @@ sim_cluster_surv <- function(
     seed          = seed
   )
 
-  slim_dist <- m$slim_dist  # n_antigens x n_ref_pairs; columns SR1, SR2, ... in coordinate order
+  slim_dist <- m$slim_dist  # n_antigens x n_ref_pairs
 
   # Derive sera_idx from coincident (maps serum k → antigen row index)
   sera_idx <- if (isTRUE(coincident)) seq_len(n_ref_pairs) else coincident
+
+  # Name serum columns to match their homologous antigen (e.g. SR1, SR6, SR11)
+  serum_names <- paste0("SR", sera_idx)
+  colnames(slim_dist)    <- serum_names
+  rownames(m$sera_coord) <- serum_names
 
   n_ag <- n_antigens
   n_sr <- n_ref_pairs

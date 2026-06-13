@@ -43,9 +43,9 @@ test_that("titre table dimensions are n_antigens x n_ref_pairs", {
   expect_equal(dim(small$titre_tables$hiA_agA), c(15L, 3L))
 })
 
-test_that("serum columns named SR1, SR2, SR3 in coordinate order", {
-  expect_equal(colnames(small$titre_tables$hiA_agA), c("SR1", "SR2", "SR3"))
-  expect_equal(colnames(small$slim_dist), c("SR1", "SR2", "SR3"))
+test_that("serum columns named after homologous antigen index", {
+  expect_equal(colnames(small$titre_tables$hiA_agA), c("SR1", "SR6", "SR11"))
+  expect_equal(colnames(small$slim_dist), c("SR1", "SR6", "SR11"))
 })
 
 test_that("all four tables have identical missing pattern", {
@@ -60,8 +60,8 @@ test_that("ag_coord and sr_coord returned with correct dimensions", {
   expect_equal(dim(small$sr_coord), c(3L, 2L))
 })
 
-test_that("sr_coord row names are SR1, SR2, SR3 in coordinate order", {
-  expect_equal(rownames(small$sr_coord), c("SR1", "SR2", "SR3"))
+test_that("sr_coord row names match homologous antigen index", {
+  expect_equal(rownames(small$sr_coord), c("SR1", "SR6", "SR11"))
 })
 
 test_that("slim_dist returned with correct dimensions", {
@@ -80,26 +80,26 @@ test_that("params$coincident records the supplied value", {
 })
 
 test_that("homologous distances are zero (coincident AGs = sera positions)", {
-  expect_equal(small$slim_dist[1,  "SR1"], 0)
-  expect_equal(small$slim_dist[6,  "SR2"], 0)
-  expect_equal(small$slim_dist[11, "SR3"], 0)
+  expect_equal(small$slim_dist[1,  "SR1"],  0)
+  expect_equal(small$slim_dist[6,  "SR6"],  0)
+  expect_equal(small$slim_dist[11, "SR11"], 0)
 })
 
 # --- Missing pattern: test antigens ---
 # block 1 test AGs (rows 2,3,4,5,7,8): measured in SR1, SR6 only
 # block 2 test AGs (rows 9,10,12,13,14,15): measured in SR6, SR11 only
 
-test_that("block-1 test AGs measured only in SR1 and SR2", {
+test_that("block-1 test AGs measured only in SR1 and SR6", {
   tt <- small$titre_tables$hiA_agA
   block1_rows <- c(2, 3, 4, 5, 7, 8)
-  expect_true(all(tt[block1_rows, c("SR1", "SR2")] != "*"))
-  expect_true(all(tt[block1_rows, "SR3"] == "*"))
+  expect_true(all(tt[block1_rows, c("SR1", "SR6")] != "*"))
+  expect_true(all(tt[block1_rows, "SR11"] == "*"))
 })
 
-test_that("block-2 test AGs measured only in SR2 and SR3", {
+test_that("block-2 test AGs measured only in SR6 and SR11", {
   tt <- small$titre_tables$hiA_agA
   block2_rows <- c(9, 10, 12, 13, 14, 15)
-  expect_true(all(tt[block2_rows, c("SR2", "SR3")] != "*"))
+  expect_true(all(tt[block2_rows, c("SR6", "SR11")] != "*"))
   expect_true(all(tt[block2_rows, "SR1"] == "*"))
 })
 
@@ -108,20 +108,20 @@ test_that("block-2 test AGs measured only in SR2 and SR3", {
 # SR6 (row 6): blocks 1+2 -> SR1, SR6, SR11
 # SR11 (row 11): block 2 -> SR6, SR11
 
-test_that("ref AG for SR1 (row 1) measured in SR1 and SR2 only", {
+test_that("ref AG for SR1 (row 1) measured in SR1 and SR6 only", {
   tt <- small$titre_tables$hiA_agA
-  expect_true(all(tt[1, c("SR1", "SR2")] != "*"))
-  expect_true(tt[1, "SR3"] == "*")
+  expect_true(all(tt[1, c("SR1", "SR6")] != "*"))
+  expect_true(tt[1, "SR11"] == "*")
 })
 
-test_that("ref AG for SR2 (row 6) measured in all columns (spans both blocks)", {
+test_that("ref AG for SR6 (row 6) measured in all columns (spans both blocks)", {
   tt <- small$titre_tables$hiA_agA
   expect_true(all(tt[6, ] != "*"))
 })
 
-test_that("ref AG for SR3 (row 11) measured in SR2 and SR3 only", {
+test_that("ref AG for SR11 (row 11) measured in SR6 and SR11 only", {
   tt <- small$titre_tables$hiA_agA
-  expect_true(all(tt[11, c("SR2", "SR3")] != "*"))
+  expect_true(all(tt[11, c("SR6", "SR11")] != "*"))
   expect_true(tt[11, "SR1"] == "*")
 })
 
