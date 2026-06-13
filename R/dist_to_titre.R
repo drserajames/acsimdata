@@ -21,7 +21,7 @@ dist_to_hi_titre <- function(dists, base = 2, divisor = 10, max_log_titre = 9, m
   n_sera <- length(which_sera)
 
 
-  dist_table <- dists[which_antigens, which_sera]
+  dist_table <- dists[which_antigens, which_sera, drop = FALSE]
   max_log_titre_table <- matrix(max_log_titre, nrow = nrow(dist_table), ncol = ncol(dist_table))
   diff_table <- max_log_titre_table - dist_table
 

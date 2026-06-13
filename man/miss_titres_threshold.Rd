@@ -4,7 +4,7 @@
 \alias{miss_titres_threshold}
 \title{Remove titres below a detection threshold}
 \usage{
-miss_titres_threshold(titre, threshold, keep_homologous = TRUE)
+miss_titres_threshold(titre, threshold, keep_homologous = TRUE, min_dim = NULL)
 }
 \arguments{
 \item{titre}{A matrix of titres. Either numeric (e.g. \code{round_titre}) or
@@ -15,6 +15,13 @@ for a standard HI assay floor of 1:10).}
 
 \item{keep_homologous}{Whether to retain homologous titres even when they
 fall below \code{threshold}. Default \code{TRUE}.}
+
+\item{min_dim}{Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+(default).  When \code{NULL} a warning is issued if the result appears
+underconstrained for a 2-dimensional map.  When set, removal is capped so
+that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+remain, and a warning is issued if capping was needed or if the input is
+already underconstrained.}
 }
 \value{
 A list with elements:

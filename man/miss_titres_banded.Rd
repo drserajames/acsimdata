@@ -4,7 +4,13 @@
 \alias{miss_titres_banded}
 \title{Remove titres that are far from the table diagonal (banded missingness)}
 \usage{
-miss_titres_banded(titre, bandwidth, n_sera = NULL, keep_homologous = TRUE)
+miss_titres_banded(
+  titre,
+  bandwidth,
+  n_sera = NULL,
+  keep_homologous = TRUE,
+  min_dim = NULL
+)
 }
 \arguments{
 \item{titre}{A character matrix of titres (e.g.\ \code{lessthan_titre} from
@@ -25,6 +31,15 @@ first.  Must be a positive integer no greater than \code{ncol(titre)}.}
 \item{keep_homologous}{Whether to protect homologous (diagonal) titre pairs
 from banding.  Default \code{TRUE}; only relevant when
 \code{bandwidth = 0}.}
+
+\item{min_dim}{Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+(default).  When \code{NULL} a warning is issued if the result appears
+underconstrained for a 2-dimensional map.  When set, the banding removal
+is capped so that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2}
+observations remain; note that serum dropping (if \code{n_sera} is set)
+is applied after capping and may further reduce observations.  A warning
+is issued if capping was needed, if the input is already underconstrained,
+or if the final output is underconstrained.}
 }
 \value{
 A list:

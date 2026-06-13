@@ -9,6 +9,15 @@ test_that("output right size", {
   }
 })
 
+test_that("works with a single serum column", {
+  d <- matrix(runif(5), nrow = 5, ncol = 1,
+              dimnames = list(paste0("AG", 1:5), "SR1"))
+  hi <- dist_to_hi_titre(d)
+  expect_equal(dim(hi$round_titre), c(5L, 1L))
+  expect_equal(dim(hi$lessthan_titre), c(5L, 1L))
+  expect_equal(dim(hi$lessthanhack_titre), c(5L, 1L))
+})
+
 test_that("titre divisible by divisor and base wih default min_log_titre=0", {
   # function from help for is.integer
   is.wholenumber <- function(x, tol = .Machine$double.eps^0.5) abs(x - round(x)) < tol

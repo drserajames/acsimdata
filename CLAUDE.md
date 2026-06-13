@@ -92,6 +92,20 @@ All structured missing functions return at minimum: `full_titre`, `rm_titre`, `r
 |---|---|
 | `sim_surv_tables(n_tables, n_ag_per_table, n_sr_per_table, n_ref_ag=0, n_ref_sr=0, n_ref_ag_overlap=NULL, n_ref_sr_overlap=NULL, ag_drift, ...)` | Generates sequential HI tables mimicking surveillance data. Each table has two groups: **reference** antigens/sera (shared across multiple tables) and **table-specific** antigens/sera (unique to one table). Antigens drift along dimension 1 by `ag_drift` per period. Returns `merged_titre_table`, per-table coordinate and membership information. |
 
+### Simulation from existing maps
+| Function | Description |
+|---|---|
+| `sim_from_map(map, coord_noise_sd=0, layers=FALSE, noise_params=list(), base=2, divisor=10, max_log_titre=9, min_log_titre=0, seed)` | Treats the optimised coordinates of a Racmacs `acmap` as the ground truth and simulates new HI titre data from them. Observed missingness from the real titer table is stamped onto the simulated titres. Optionally adds noise via `add_noise()` and/or preserves layer structure. Requires Racmacs. |
+
+**`sim_from_map` — key details:**
+- Extracts `agCoords`, `srCoords`, and `titerTable` from the map; computes slim AG×SR distances internally.
+- `coord_noise_sd`: Gaussian noise (in antigenic units) added to each coordinate dimension **before** computing distances. Prevents the source coordinates sitting at the exact titre-space minimum — important for absolute benchmarking. Default 0 (no perturbation).
+- `noise_params`: named list forwarded to `add_noise()` (omit `dists` — injected automatically). Adds measurement noise **after** distances are computed. Empty list = no noise. The two noise sources are independent.
+- `layers = TRUE`: additionally calls `titerTableLayers(map)` and applies each layer's `"*"` pattern independently; returns `sim_titre_layers` (named list of matrices). The merged `sim_titre` is unaffected.
+- `max_log_titre`: accepts a per-serum vector; pass `Racmacs::srColbases(map)` to match the original titre scale.
+- Internal AG1/AG2…/SR1/SR2… naming is used for pipeline compatibility; original antigen/serum names are restored in all output matrices.
+- Returns: `sim_titre` (merged missingness), `full_sim_titre` (no missingness), `sim_titre_layers` (NULL or list), `observed_titre`, `dist`, `noise`, `ag_coord`/`sr_coord` (perturbed if `coord_noise_sd > 0`), `params`.
+
 **`sim_surv_tables` — reference vs table-specific structure:**
 - `n_ag_per_table` / `n_sr_per_table`: table-specific points, unique to each table. Accept scalar or vector of length `n_tables`.
 - `n_ref_ag` / `n_ref_sr`: reference points shared across multiple tables.
@@ -121,7 +135,7 @@ All structured missing functions return at minimum: `full_titre`, `rm_titre`, `r
 
 ```r
 devtools::document()   # regenerate NAMESPACE and man/ from roxygen2 tags
-devtools::test()       # run all tests (249 as of June 2026)
+devtools::test()       # run all tests (372 as of June 2026)
 devtools::check()      # full R CMD check
 ```
 

@@ -412,3 +412,160 @@ test_that("banded: error when n_sera < 1", {
   f <- make_fixture()
   expect_error(miss_titres_banded(f$ti$lessthan_titre, bandwidth = 2, n_sera = 0L))
 })
+
+
+# ── Constraint helpers ────────────────────────────────────────────────────────
+
+# Helper: a 5x5 titre with one row zeroed out (disconnected graph)
+make_disconnected <- function() {
+  f <- make_fixture()
+  t <- f$ti$lessthan_titre
+  t[5, ] <- "*"   # AG5 has no titres → disconnected
+  t
+}
+
+# Helper: minimum observations for d=2, n_ag=n_sr=5
+min_obs_2d <- function(n_ag = 5L, n_sr = 5L) 2L * (n_ag + n_sr) - 3L
+
+test_that("constraint: warns for 2D count underconstraint (threshold)", {
+  f <- make_fixture()
+  expect_warning(
+    miss_titres_threshold(f$ti$round_titre, threshold = 1e9, keep_homologous = FALSE),
+    "underconstrained"
+  )
+})
+
+test_that("constraint: warns for 2D count underconstraint (informed)", {
+  f <- make_fixture()
+  expect_warning(
+    miss_titres_informed(f$ti$lessthan_titre, midpoint_titre = 1e9,
+                         steepness = 20, keep_homologous = FALSE, seed = 1),
+    "underconstrained"
+  )
+})
+
+test_that("constraint: warns for 2D count underconstraint (block)", {
+  f <- make_fixture()
+  # Remove entire table except diagonal
+  expect_warning(
+    miss_titres_block(f$ti$lessthan_titre,
+                      antigens = 1:5, sera = 1:5, keep_homologous = TRUE),
+    "underconstrained"
+  )
+})
+
+test_that("constraint: warns for 2D count underconstraint (by_distance)", {
+  f <- make_fixture()
+  expect_warning(
+    miss_titres_by_distance(f$ti$lessthan_titre, f$m$antigen_coord, f$m$sera_coord,
+                             midpoint_dist = -1000, steepness = 1,
+                             keep_homologous = FALSE, seed = 1),
+    "underconstrained"
+  )
+})
+
+test_that("constraint: warns for 2D count underconstraint (banded)", {
+  f <- make_fixture()
+  expect_warning(
+    miss_titres_banded(f$ti$lessthan_titre, bandwidth = 0, keep_homologous = FALSE),
+    "underconstrained"
+  )
+})
+
+test_that("constraint: no warning when well-constrained (threshold)", {
+  f <- make_fixture()
+  # Small threshold removes nothing → no underconstraint
+  expect_no_warning(miss_titres_threshold(f$ti$round_titre, threshold = 1))
+})
+
+test_that("constraint: disconnected graph warning (threshold)", {
+  t <- make_disconnected()
+  expect_warning(
+    miss_titres_threshold(t, threshold = 1),
+    "disconnected"
+  )
+})
+
+test_that("constraint: min_dim caps removal to maintain constraint (threshold)", {
+  f <- make_fixture()
+  # Extreme threshold would remove everything not homologous
+  result <- suppressWarnings(
+    miss_titres_threshold(f$ti$round_titre, threshold = 1e9,
+                          keep_homologous = FALSE, min_dim = 2L)
+  )
+  expect_gte(sum(result$rm_titre != "*"), min_obs_2d())
+})
+
+test_that("constraint: min_dim caps removal to maintain constraint (informed)", {
+  f <- make_fixture()
+  result <- suppressWarnings(
+    miss_titres_informed(f$ti$lessthan_titre, midpoint_titre = 1e9,
+                         steepness = 20, keep_homologous = FALSE,
+                         seed = 1, min_dim = 2L)
+  )
+  expect_gte(sum(result$rm_titre != "*"), min_obs_2d())
+})
+
+test_that("constraint: min_dim caps removal to maintain constraint (block)", {
+  f <- make_fixture()
+  result <- suppressWarnings(
+    miss_titres_block(f$ti$lessthan_titre, antigens = 1:5, sera = 1:5,
+                      keep_homologous = FALSE, min_dim = 2L)
+  )
+  expect_gte(sum(result$rm_titre != "*"), min_obs_2d())
+})
+
+test_that("constraint: min_dim caps removal to maintain constraint (by_distance)", {
+  f <- make_fixture()
+  result <- suppressWarnings(
+    miss_titres_by_distance(f$ti$lessthan_titre, f$m$antigen_coord, f$m$sera_coord,
+                             midpoint_dist = -1000, steepness = 1,
+                             keep_homologous = FALSE, seed = 1, min_dim = 2L)
+  )
+  expect_gte(sum(result$rm_titre != "*"), min_obs_2d())
+})
+
+test_that("constraint: min_dim caps banding removal (banded)", {
+  f <- make_fixture()
+  # bandwidth=0 would leave only diagonal (5 obs), well below min_obs_2d(5,5)=17
+  result <- suppressWarnings(
+    miss_titres_banded(f$ti$lessthan_titre, bandwidth = 0,
+                       keep_homologous = FALSE, min_dim = 2L)
+  )
+  expect_gte(sum(result$rm_titre != "*"), min_obs_2d())
+})
+
+test_that("constraint: min_dim warns when cap is applied (threshold)", {
+  f <- make_fixture()
+  expect_warning(
+    miss_titres_threshold(f$ti$round_titre, threshold = 1e9,
+                          keep_homologous = FALSE, min_dim = 2L),
+    "Capping"
+  )
+})
+
+test_that("constraint: min_dim warns when input already underconstrained", {
+  # 2x2 table with only 1 observation; min for d=2 is 2*(2+2)-3=5
+  t <- matrix(c("10", "*", "*", "*"), nrow = 2, ncol = 2,
+              dimnames = list(c("AG1", "AG2"), c("SR1", "SR2")))
+  expect_warning(
+    miss_titres_threshold(t, threshold = 5, min_dim = 2L),
+    "Cannot enforce"
+  )
+})
+
+test_that("constraint: min_dim stored in params", {
+  f <- make_fixture()
+  result <- suppressWarnings(
+    miss_titres_threshold(f$ti$round_titre, threshold = 1e9, min_dim = 2L)
+  )
+  expect_equal(result$params$min_dim, 2L)
+})
+
+test_that("constraint: min_dim = NULL stored in params when not set", {
+  f <- make_fixture()
+  result <- suppressWarnings(
+    miss_titres_threshold(f$ti$round_titre, threshold = 20)
+  )
+  expect_null(result$params$min_dim)
+})

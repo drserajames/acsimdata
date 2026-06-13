@@ -4,7 +4,13 @@
 \alias{miss_titres_block}
 \title{Remove a rectangular block of titres}
 \usage{
-miss_titres_block(titre, antigens, sera, keep_homologous = TRUE)
+miss_titres_block(
+  titre,
+  antigens,
+  sera,
+  keep_homologous = TRUE,
+  min_dim = NULL
+)
 }
 \arguments{
 \item{titre}{A character matrix of titres.}
@@ -19,6 +25,13 @@ indices.}
 
 \item{keep_homologous}{Whether to protect homologous titres within the block
 from removal.  Default \code{TRUE}.}
+
+\item{min_dim}{Integer dimensionality (\eqn{d \geq 1}) or \code{NULL}
+(default).  When \code{NULL} a warning is issued if the result appears
+underconstrained for a 2-dimensional map.  When set, removal is capped so
+that at least \eqn{(n_\text{ag} + n_\text{sr}) d - d(d+1)/2} observations
+remain, and a warning is issued if capping was needed or if the input is
+already underconstrained.}
 }
 \value{
 A list with the same structure as \code{\link{miss_titres_random}}:

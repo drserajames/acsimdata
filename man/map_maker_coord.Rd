@@ -13,35 +13,70 @@ map_maker_coord(
   dimensions = 2,
   antigen_density = n_antigens/range^dimensions,
   rdistribution = stats::runif,
+  coincident = FALSE,
   seed
 )
 }
 \arguments{
-\item{n_antigens}{The number of antigen points for each cluster}
+\item{n_antigens}{The number of antigen points in total.}
 
-\item{n_sera}{The number of serum points for each cluster}
+\item{n_sera}{The number of serum points.}
 
-\item{true_ag_coord}{The coordinates of antigen points for each cluster. True coordinates need to be specified for the maximum number of dimensions.}
+\item{true_ag_coord}{A matrix with one row per antigen giving the cluster
+centre for that antigen.  Rows are recycled to length \code{n_antigens},
+so you can pass one row per cluster and they will be repeated as needed.}
 
-\item{true_sr_coord}{The coordinates of serum points for each cluster. True coordinates need to be specified for the maximum number of dimensions.}
+\item{true_sr_coord}{A matrix of cluster centres for the sera, in the same
+format as \code{true_ag_coord}.  Defaults to \code{true_ag_coord}.
+Ignored when \code{coincident} is not \code{FALSE}.}
 
-\item{range}{The maximum range of each cluster (in all dimensions)}
+\item{range}{The within-cluster scatter range (maximum offset in each
+dimension).}
 
-\item{dimensions}{The number of dimensions the map}
+\item{dimensions}{The number of map dimensions.}
 
-\item{antigen_density}{The density of antigen points, which can be used to indirectly specify the range for a cluster. Only used when range is not specified}
+\item{antigen_density}{Density of antigen points; used to derive
+\code{range} when \code{range} is not supplied.}
 
-\item{rdistribution}{A function that generates random numbers for the spatial distribution of points. The default is runif, but can be another distribition or a user generated function.}
+\item{rdistribution}{Distribution function for within-cluster scatter.
+Default \code{runif}.}
 
-\item{seed}{Random seed}
+\item{coincident}{Controls serum coordinate generation:
+\describe{
+\item{\code{FALSE} (default)}{Sera receive independently sampled
+scatter around their own cluster centres (\code{true_sr_coord}).}
+\item{\code{TRUE}}{The first \code{n_sera} antigen positions are reused
+as serum positions (exact coincidence, dist = 0 for homologous pairs).
+\code{true_sr_coord} is ignored.}
+\item{integer vector of length \code{n_sera}}{The specified antigen
+indices are reused as serum positions.  Allows choosing which
+antigens become sera (e.g. one set from each cluster).
+\code{true_sr_coord} is ignored.}
+}
+When \code{coincident} is not \code{FALSE} the returned \code{dist} and
+\code{coord} matrices cover only the \code{n_antigens} antigen points
+(square, \eqn{n\_antigens \times n\_antigens}); \code{slim\_dist} is the
+\eqn{n\_antigens \times n\_sera} submatrix of those antigen-to-antigen
+distances at the serum column indices.}
+
+\item{seed}{Random seed.}
 }
 \value{
-list
+A list with elements \code{coord}, \code{antigen_coord},
+\code{sera_coord}, \code{dist}, \code{slim_dist}, and \code{params}.
 }
 \description{
-Create random map positions for specified cluster positions and numbers
+Create random map positions for specified cluster positions and numbers.
 }
 \examples{
-
+# Independent serum scatter (original behaviour)
 map_maker_coord(5, 5, matrix(c(1,0,0,0,1,1,1,0,0,0), ncol=2, byrow=TRUE), range=10)
+
+# Homologous: first 3 antigens become sera
+centres <- matrix(c(0,0, 3,0, 1.5, 2.6), ncol=2, byrow=TRUE)
+true_ag <- centres[rep(1:3, each=4), ]
+map_maker_coord(12, 3, true_ag, range=0.25, coincident=TRUE)
+
+# Homologous: specific antigen indices as sera (one per cluster)
+map_maker_coord(12, 3, true_ag, range=0.25, coincident=c(1L, 5L, 9L))
 }
