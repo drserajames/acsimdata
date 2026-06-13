@@ -6,6 +6,7 @@
 \usage{
 sim_from_map(
   map,
+  coord_noise_sd = 0,
   layers = FALSE,
   noise_params = list(),
   base = 2,
@@ -19,6 +20,16 @@ sim_from_map(
 \item{map}{A Racmacs \code{acmap} object with at least one optimisation run
 (so that \code{Racmacs::agCoords} and \code{Racmacs::srCoords} return
 non-\code{NULL} values).}
+
+\item{coord_noise_sd}{Standard deviation (in map coordinate units, i.e.
+antigenic units) of Gaussian noise added independently to each dimension
+of every antigen and serum position before computing distances.  Default
+\code{0} (no perturbation).  A non-zero value breaks the exact alignment
+between the source coordinates and the minimum of the simulated titre
+landscape, which is important when using the output for absolute
+benchmarking of map recovery.  The coordinate noise uses the top-level
+\code{seed}; measurement noise (\code{noise_params}) resets the RNG
+independently so the two are not confounded.}
 
 \item{layers}{Logical.  If \code{TRUE}, \code{Racmacs::titerTableLayers} is
 called and the observed missingness pattern of each layer is applied
@@ -68,8 +79,12 @@ names as \code{sim_titre}, with per-layer observed missingness applied.
 \code{NULL} when \code{layers = FALSE}.}
 \item{noise}{Output of \code{\link{add_noise}} if noise was applied,
 otherwise \code{NULL}.}
-\item{ag_coord}{Antigen coordinate matrix extracted from \code{map}.}
-\item{sr_coord}{Serum coordinate matrix extracted from \code{map}.}
+\item{ag_coord}{Antigen coordinate matrix used as the simulation ground
+truth.  If \code{coord_noise_sd > 0} these are the perturbed
+coordinates, not the original map coordinates.  The originals are
+available via \code{Racmacs::agCoords(map)}.}
+\item{sr_coord}{Serum coordinate matrix used as the simulation ground
+truth (perturbed if \code{coord_noise_sd > 0}).}
 \item{params}{List of input parameters, with \code{seed} always present.}
 }
 }
@@ -85,16 +100,30 @@ The pipeline is:
 \enumerate{
 \item Extract antigen coordinates, serum coordinates, the merged titer
 table, and (optionally) per-layer titer tables from \code{map}.
-\item Compute pairwise Euclidean distances between all antigens and sera.
+\item If \code{coord_noise_sd > 0}, perturb every antigen and serum
+coordinate by adding independent Gaussian noise (mean 0, sd
+\code{coord_noise_sd}) to each dimension.  This prevents the source
+coordinates from sitting at the exact stress minimum of the simulated
+titres and is recommended for absolute benchmarking.
+\item Compute pairwise Euclidean distances from the (possibly perturbed)
+coordinates.
 \item If \code{noise_params} is a non-empty list, call
 \code{\link{add_noise}} with those parameters plus the distance
-matrix.
+matrix.  This adds measurement noise on top of the coordinate
+perturbation.
 \item Convert distances to HI titres via \code{\link{dist_to_hi_titre}}.
 \item Stamp \code{"*"} wherever the merged titer table contains \code{"*"}
 to produce \code{sim_titre}.
 \item If \code{layers = TRUE}, stamp \code{"*"} independently for each
 layer's \code{"*"} pattern to produce \code{sim_titre_layers}.
 }
+
+\strong{Two sources of noise:} \code{coord_noise_sd} and \code{noise_params}
+address different problems.  Coordinate noise (\code{coord_noise_sd}) shifts
+the ground-truth positions so that the optimisation target is not trivially
+the source map's coordinates — important for absolute benchmarking.
+Measurement noise (\code{noise_params}) adds titre-level variation mimicking
+assay repeatability.  Both can be used together.
 
 \strong{Layer behaviour:} \code{sim_titre} and \code{sim_titre_layers} are
 derived from the same underlying simulated titre values but with different
@@ -128,6 +157,15 @@ result_colbases <- sim_from_map(
 
 # Use the simulated titre table to build a new Racmacs map
 new_map <- Racmacs::acmap(titer_table = result$sim_titre)
+
+# For absolute benchmarking: perturb coordinates AND add measurement noise
+result_bench <- sim_from_map(
+  map,
+  coord_noise_sd = 0.5,
+  noise_params   = list(titre_noise_param = c(0, 0.5)),
+  seed = 1
+)
+# result_bench$ag_coord holds the perturbed ground-truth positions
 
 # Preserve layer structure — one simulated table per observed layer
 result_layers <- sim_from_map(map, layers = TRUE, seed = 1)

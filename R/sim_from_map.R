@@ -11,16 +11,30 @@
 #' \enumerate{
 #'   \item Extract antigen coordinates, serum coordinates, the merged titer
 #'         table, and (optionally) per-layer titer tables from \code{map}.
-#'   \item Compute pairwise Euclidean distances between all antigens and sera.
+#'   \item If \code{coord_noise_sd > 0}, perturb every antigen and serum
+#'         coordinate by adding independent Gaussian noise (mean 0, sd
+#'         \code{coord_noise_sd}) to each dimension.  This prevents the source
+#'         coordinates from sitting at the exact stress minimum of the simulated
+#'         titres and is recommended for absolute benchmarking.
+#'   \item Compute pairwise Euclidean distances from the (possibly perturbed)
+#'         coordinates.
 #'   \item If \code{noise_params} is a non-empty list, call
 #'         \code{\link{add_noise}} with those parameters plus the distance
-#'         matrix.
+#'         matrix.  This adds measurement noise on top of the coordinate
+#'         perturbation.
 #'   \item Convert distances to HI titres via \code{\link{dist_to_hi_titre}}.
 #'   \item Stamp \code{"*"} wherever the merged titer table contains \code{"*"}
 #'         to produce \code{sim_titre}.
 #'   \item If \code{layers = TRUE}, stamp \code{"*"} independently for each
 #'         layer's \code{"*"} pattern to produce \code{sim_titre_layers}.
 #' }
+#'
+#' \strong{Two sources of noise:} \code{coord_noise_sd} and \code{noise_params}
+#' address different problems.  Coordinate noise (\code{coord_noise_sd}) shifts
+#' the ground-truth positions so that the optimisation target is not trivially
+#' the source map's coordinates — important for absolute benchmarking.
+#' Measurement noise (\code{noise_params}) adds titre-level variation mimicking
+#' assay repeatability.  Both can be used together.
 #'
 #' \strong{Layer behaviour:} \code{sim_titre} and \code{sim_titre_layers} are
 #' derived from the same underlying simulated titre values but with different
@@ -34,6 +48,15 @@
 #' @param map A Racmacs \code{acmap} object with at least one optimisation run
 #'   (so that \code{Racmacs::agCoords} and \code{Racmacs::srCoords} return
 #'   non-\code{NULL} values).
+#' @param coord_noise_sd Standard deviation (in map coordinate units, i.e.
+#'   antigenic units) of Gaussian noise added independently to each dimension
+#'   of every antigen and serum position before computing distances.  Default
+#'   \code{0} (no perturbation).  A non-zero value breaks the exact alignment
+#'   between the source coordinates and the minimum of the simulated titre
+#'   landscape, which is important when using the output for absolute
+#'   benchmarking of map recovery.  The coordinate noise uses the top-level
+#'   \code{seed}; measurement noise (\code{noise_params}) resets the RNG
+#'   independently so the two are not confounded.
 #' @param layers Logical.  If \code{TRUE}, \code{Racmacs::titerTableLayers} is
 #'   called and the observed missingness pattern of each layer is applied
 #'   independently to the simulated titres, returning a list of per-layer
@@ -75,8 +98,12 @@
 #'     \code{NULL} when \code{layers = FALSE}.}
 #'   \item{noise}{Output of \code{\link{add_noise}} if noise was applied,
 #'     otherwise \code{NULL}.}
-#'   \item{ag_coord}{Antigen coordinate matrix extracted from \code{map}.}
-#'   \item{sr_coord}{Serum coordinate matrix extracted from \code{map}.}
+#'   \item{ag_coord}{Antigen coordinate matrix used as the simulation ground
+#'     truth.  If \code{coord_noise_sd > 0} these are the perturbed
+#'     coordinates, not the original map coordinates.  The originals are
+#'     available via \code{Racmacs::agCoords(map)}.}
+#'   \item{sr_coord}{Serum coordinate matrix used as the simulation ground
+#'     truth (perturbed if \code{coord_noise_sd > 0}).}
 #'   \item{params}{List of input parameters, with \code{seed} always present.}
 #' }
 #' @export
@@ -105,6 +132,15 @@
 #' # Use the simulated titre table to build a new Racmacs map
 #' new_map <- Racmacs::acmap(titer_table = result$sim_titre)
 #'
+#' # For absolute benchmarking: perturb coordinates AND add measurement noise
+#' result_bench <- sim_from_map(
+#'   map,
+#'   coord_noise_sd = 0.5,
+#'   noise_params   = list(titre_noise_param = c(0, 0.5)),
+#'   seed = 1
+#' )
+#' # result_bench$ag_coord holds the perturbed ground-truth positions
+#'
 #' # Preserve layer structure — one simulated table per observed layer
 #' result_layers <- sim_from_map(map, layers = TRUE, seed = 1)
 #' layer_maps <- lapply(result_layers$sim_titre_layers, function(tt) {
@@ -112,12 +148,13 @@
 #' })
 #' }
 sim_from_map <- function(map,
-                          layers        = FALSE,
-                          noise_params  = list(),
-                          base          = 2,
-                          divisor       = 10,
-                          max_log_titre = 9,
-                          min_log_titre = 0,
+                          coord_noise_sd = 0,
+                          layers         = FALSE,
+                          noise_params   = list(),
+                          base           = 2,
+                          divisor        = 10,
+                          max_log_titre  = 9,
+                          min_log_titre  = 0,
                           seed) {
 
   # ── 1. Extract from acmap ────────────────────────────────────────────────────
@@ -147,7 +184,24 @@ sim_from_map <- function(map,
     }
   }
 
-  # ── 2. Pairwise distances (slim n_ag x n_sr matrix) ─────────────────────────
+  # ── 2. Seed (needed before any stochastic step) ──────────────────────────────
+  if (missing(seed)) seed <- sample(1:1e6, 1)
+
+  # ── 3. Coordinate perturbation (optional) ────────────────────────────────────
+  # Shifts ground-truth positions so they no longer sit at the exact stress
+  # minimum of the simulated titres — important for absolute benchmarking.
+  # Operates on ag_coord / sr_coord in place; the return list carries the
+  # perturbed versions as the ground truth.
+  if (coord_noise_sd > 0) {
+    set.seed(seed)
+    n_dims   <- ncol(ag_coord)
+    ag_coord <- ag_coord +
+      matrix(rnorm(n_ag * n_dims, 0, coord_noise_sd), nrow = n_ag, ncol = n_dims)
+    sr_coord <- sr_coord +
+      matrix(rnorm(n_sr * n_dims, 0, coord_noise_sd), nrow = n_sr, ncol = n_dims)
+  }
+
+  # ── 4. Pairwise distances (slim n_ag x n_sr matrix) ─────────────────────────
   # Rename internally to "AG..."/"SR..." so add_noise / dist_to_hi_titre can
   # identify antigens and sera by name as they expect.
   ag_int <- ag_coord
@@ -167,10 +221,7 @@ sim_from_map <- function(map,
     slim_dist[i, ] <- sqrt(rowSums(diffs^2))
   }
 
-  # ── 3. Seed ──────────────────────────────────────────────────────────────────
-  if (missing(seed)) seed <- sample(1:1e6, 1)
-
-  # ── 4. Optional noise ────────────────────────────────────────────────────────
+  # ── 5. Optional measurement noise ────────────────────────────────────────────
   noise_result <- NULL
   if (length(noise_params) > 0) {
     np       <- noise_params
@@ -182,7 +233,7 @@ sim_from_map <- function(map,
     dist_for_titre <- slim_dist
   }
 
-  # ── 5. Convert distances to titres ──────────────────────────────────────────
+  # ── 6. Convert distances to titres ──────────────────────────────────────────
   titre_result <- dist_to_hi_titre(
     dist_for_titre,
     base          = base,
@@ -192,13 +243,13 @@ sim_from_map <- function(map,
   )
   sim_titre <- titre_result$lessthan_titre   # character matrix, AG.../SR... names
 
-  # ── 6. Apply observed missingness ────────────────────────────────────────────
+  # ── 7. Apply observed missingness ────────────────────────────────────────────
   sim_titre_miss <- sim_titre
   if (!is.null(observed_titre)) {
     sim_titre_miss[observed_titre == "*"] <- "*"
   }
 
-  # ── 7. Restore original antigen / serum names ────────────────────────────────
+  # ── 8. Restore original antigen / serum names ────────────────────────────────
   rownames(sim_titre_miss) <- ag_names
   colnames(sim_titre_miss) <- sr_names
   rownames(sim_titre)      <- ag_names
@@ -206,7 +257,7 @@ sim_from_map <- function(map,
   rownames(slim_dist)      <- ag_names
   colnames(slim_dist)      <- sr_names
 
-  # ── 8. Per-layer missingness (optional) ──────────────────────────────────────
+  # ── 9. Per-layer missingness (optional) ──────────────────────────────────────
   # sim_titre here is the pre-missingness full simulation with real names.
   # Each layer matrix from Racmacs may lack dimnames; matching is positional,
   # which is safe because the layer matrices have the same n_ag x n_sr layout
@@ -242,13 +293,14 @@ sim_from_map <- function(map,
     ag_coord         = ag_coord,
     sr_coord         = sr_coord,
     params           = list(
-      layers        = layers,
-      noise_params  = noise_params,
-      base          = base,
-      divisor       = divisor,
-      max_log_titre = max_log_titre,
-      min_log_titre = min_log_titre,
-      seed          = seed
+      coord_noise_sd = coord_noise_sd,
+      layers         = layers,
+      noise_params   = noise_params,
+      base           = base,
+      divisor        = divisor,
+      max_log_titre  = max_log_titre,
+      min_log_titre  = min_log_titre,
+      seed           = seed
     )
   )
 }

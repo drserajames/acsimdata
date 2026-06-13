@@ -198,6 +198,73 @@ test_that("titre conversion parameters are stored in params", {
   expect_equal(r$params$min_log_titre, 1)
 })
 
+# ── Coordinate noise ─────────────────────────────────────────────────────────
+
+test_that("coord_noise_sd = 0 (default): returned ag_coord matches source", {
+  r <- run_sim(seed = 1)
+  expect_identical(r$ag_coord, ag_mock)
+  expect_identical(r$sr_coord, sr_mock)
+})
+
+test_that("coord_noise_sd > 0: returned coordinates differ from source", {
+  r <- run_sim(coord_noise_sd = 1, seed = 1)
+  expect_false(identical(r$ag_coord, ag_mock))
+  expect_false(identical(r$sr_coord, sr_mock))
+})
+
+test_that("coord_noise_sd > 0: distances differ from unperturbed case", {
+  r_clean <- run_sim(coord_noise_sd = 0, seed = 1)
+  r_noise <- run_sim(coord_noise_sd = 1, seed = 1)
+  expect_false(identical(r_clean$dist, r_noise$dist))
+})
+
+test_that("coord_noise_sd > 0: reproducible with same seed", {
+  r1 <- run_sim(coord_noise_sd = 0.5, seed = 42)
+  r2 <- run_sim(coord_noise_sd = 0.5, seed = 42)
+  expect_identical(r1$ag_coord, r2$ag_coord)
+  expect_identical(r1$sr_coord, r2$sr_coord)
+  expect_identical(r1$dist,     r2$dist)
+})
+
+test_that("coord_noise_sd > 0: different seeds give different coordinates", {
+  r1 <- run_sim(coord_noise_sd = 0.5, seed = 1)
+  r2 <- run_sim(coord_noise_sd = 0.5, seed = 2)
+  expect_false(identical(r1$ag_coord, r2$ag_coord))
+})
+
+test_that("coord_noise_sd is stored in params", {
+  r <- run_sim(coord_noise_sd = 0.5, seed = 1)
+  expect_equal(r$params$coord_noise_sd, 0.5)
+})
+
+test_that("coord_noise_sd = 0 stored in params by default", {
+  r <- run_sim(seed = 1)
+  expect_equal(r$params$coord_noise_sd, 0)
+})
+
+test_that("coord_noise + noise_params: measurement noise seed independent of coord noise", {
+  # Same top-level seed; coord perturbation uses set.seed(seed) then
+  # add_noise resets independently — so measurement noise should be identical
+  # regardless of whether coord_noise_sd is applied
+  r_no_coord <- run_sim(coord_noise_sd = 0,   noise_params = list(titre_noise_param = c(0, 1)), seed = 7)
+  r_coord    <- run_sim(coord_noise_sd = 0.5, noise_params = list(titre_noise_param = c(0, 1)), seed = 7)
+  expect_identical(r_no_coord$noise$titre_noise, r_coord$noise$titre_noise)
+})
+
+test_that("coord_noise_sd > 0: observed missingness still applied correctly", {
+  r <- run_sim(coord_noise_sd = 1, seed = 1)
+  obs_miss <- which(tt_mock == "*")
+  expect_true(all(r$sim_titre[obs_miss] == "*"))
+  obs_present <- which(tt_mock != "*")
+  expect_false(any(r$sim_titre[obs_present] == "*"))
+})
+
+test_that("coord_noise_sd > 0 with layers: layer missingness still correct", {
+  r <- run_sim(coord_noise_sd = 0.5, layers = TRUE, seed = 3)
+  expect_true(all(r$sim_titre_layers[[1]][layer1_mock == "*"] == "*"))
+  expect_true(all(r$sim_titre_layers[[2]][layer2_mock == "*"] == "*"))
+})
+
 # ── params stored: layers flag ───────────────────────────────────────────────
 
 test_that("layers = FALSE is stored in params by default", {
